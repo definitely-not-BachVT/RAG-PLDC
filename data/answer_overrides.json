@@ -1,0 +1,15 @@
+{
+  "_comment": "Manual fixes applied by pldc.quiz.QuestionBank, keyed by question id. Each entry may replace 'answers' and/or 'options'. Verified against the rendered PDF page.",
+  "questions": {
+    "nganhang_tn-1.3.16": {
+      "note": "PDF p.3: option D (red, correct) is printed overlapping option B, so the parser reads 3 options and key B.",
+      "options": [
+        {"label": "A", "text": "Do ý chí của giai cấp thống trị xã hội"},
+        {"label": "B", "text": "Do sự phát triển tự nhiên của xã hội"},
+        {"label": "C", "text": "Do mâu thuẫn giữa lực lượng sản xuất và quan hệ sản xuất trong xã hội"},
+        {"label": "D", "text": "Do sự vận động, phát triển, thay thế các hình thái kinh tế - xã hội mà nhân tố làm nên sự thay thế đó là các cuộc cách mạng xã hội"}
+      ],
+      "answers": ["D"]
+    }
+  }
+}

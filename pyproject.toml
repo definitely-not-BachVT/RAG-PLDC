@@ -1,0 +1,29 @@
+[project]
+name = "rag-pldc"
+version = "0.1.0"
+description = "Chatbot RAG và luyện trắc nghiệm môn Pháp luật đại cương (PTIT)"
+requires-python = ">=3.11"
+dependencies = [
+    "google-genai",
+    "numpy",
+    "openai",
+    "pdfminer.six",
+    "pypdfium2",
+    "python-dotenv",
+    "streamlit",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: calls real LLM/embedding APIs (needs keys in .env)"]
+addopts = "-m 'not live'"

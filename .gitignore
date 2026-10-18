@@ -1,0 +1,39 @@
+# --- Secrets -------------------------------------------------------------
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# --- Python ----------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- App runtime data (per-user chat history, quiz progress, feedback) -------
+data/app.db
+data/app.db-journal
+data/app.db-wal
+data/app.db-shm
+
+# data/processed/ and data/index/ are tracked on purpose:
+# rebuilding the index re-embeds ~900 chunks, close to Gemini's free daily quota (1000).
+
+# --- Editors / OS ------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ----------------------------------------------------------------------
+*.log

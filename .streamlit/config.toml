@@ -1,0 +1,15 @@
+[theme]
+# Shared by both modes. Colors live in [theme.light] / [theme.dark] so the app keeps
+# following the viewer's light/dark setting (a top-level color would pin one mode).
+font = "'Be Vietnam Pro':https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
+headingFont = "'Be Vietnam Pro':https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@600;700&display=swap"
+baseRadius = "medium"
+
+[theme.light]
+primaryColor = "#C62828"
+
+[theme.dark]
+primaryColor = "#EF5350"  # lighter red keeps contrast on the dark background
+
+[client]
+toolbarMode = "minimal"
