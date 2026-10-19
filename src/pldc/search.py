@@ -131,13 +131,19 @@ class Retriever:
         self._dense_off_until = 0.0
 
     def search(self, query: str, k: int = 6) -> list[Hit]:
+        hits, self.last_mode = self.search_with_mode(query, k)
+        return hits
+
+    def search_with_mode(self, query: str, k: int = 6) -> tuple[list[Hit], str]:
+        """Like search(), also returning the mode actually used ("hybrid" or "bm25");
+        safe to call from several threads (doesn't rely on last_mode)."""
         rankings = [np.argsort(-self.bm25.scores(tokenize(query)))[:CANDIDATES]]
-        self.last_mode = "bm25"
+        mode = "bm25"
         if self.embedder is not None and time.monotonic() >= self._dense_off_until:
             try:
                 q = self.embedder.embed([query], is_query=True)[0]
                 rankings.append(np.argsort(-(self.vecs @ q))[:CANDIDATES])
-                self.last_mode = "hybrid"
+                mode = "hybrid"
             except Exception as exc:  # noqa: BLE001 - keep chat working on keywords alone
                 # e.g. daily free quota used up: don't make every question wait for a retry.
                 self._dense_off_until = time.monotonic() + DENSE_COOLDOWN_S
@@ -147,4 +153,4 @@ class Retriever:
             for rank, idx in enumerate(ranking):
                 fused[int(idx)] = fused.get(int(idx), 0.0) + 1.0 / (RRF_K + rank + 1)
         best = sorted(fused.items(), key=lambda kv: -kv[1])[:k]
-        return [Hit(self.chunks[i], s) for i, s in best]
+        return [Hit(self.chunks[i], s) for i, s in best], mode
