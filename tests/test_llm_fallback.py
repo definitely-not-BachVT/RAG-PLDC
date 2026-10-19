@@ -73,3 +73,10 @@ def test_live_unreachable_deepseek_falls_back_to_gemini(monkeypatch):
     assert llm.provider_names[0] == "DeepSeek"
     text, provider = llm.complete([{"role": "user", "content": "Trả lời đúng một từ: xin chào"}])
     assert provider.startswith("Gemini") and text.strip()
+
+
+def test_gemini_timeout_falls_back():
+    from pldc.llm import GeminiProvider
+    p = GeminiProvider("k", "m", timeout=1)
+    assert p.should_fall_back(httpx.ReadTimeout("timed out"))
+    assert p.should_fall_back(httpx.ConnectError("refused"))

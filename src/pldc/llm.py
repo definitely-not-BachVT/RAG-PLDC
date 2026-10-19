@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import Iterator, Protocol
 
+import httpx
 import openai
 from google import genai
 from google.genai import errors as genai_errors
@@ -85,7 +86,8 @@ class GeminiProvider:
     def should_fall_back(self, exc: Exception) -> bool:
         if isinstance(exc, genai_errors.APIError):
             return exc.code in self._FALLBACK_STATUS or (exc.code or 0) >= 500
-        return isinstance(exc, (TimeoutError, ConnectionError))
+        # The google-genai SDK surfaces network failures as raw httpx errors (e.g. ReadTimeout).
+        return isinstance(exc, (TimeoutError, ConnectionError, httpx.TimeoutException, httpx.TransportError))
 
 
 class AllProvidersFailed(RuntimeError):

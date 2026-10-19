@@ -5,6 +5,7 @@ description = "Chatbot RAG và luyện trắc nghiệm môn Pháp luật đại 
 requires-python = ">=3.11"
 dependencies = [
     "google-genai",
+    "nicegui",
     "numpy",
     "openai",
     "pdfminer.six",

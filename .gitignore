@@ -23,6 +23,8 @@ data/app.db
 data/app.db-journal
 data/app.db-wal
 data/app.db-shm
+data/.ui_secret
+.nicegui/
 
 # data/processed/ and data/index/ are tracked on purpose:
 # rebuilding the index re-embeds ~900 chunks, close to Gemini's free daily quota (1000).

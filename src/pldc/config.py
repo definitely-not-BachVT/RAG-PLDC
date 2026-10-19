@@ -35,7 +35,7 @@ def get_settings() -> Settings:
         deepseek_base_url=env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         google_api_key=env("GOOGLE_API_KEY", "").strip(),
         gemini_models=[m.strip() for m in env(
-            "GEMINI_MODELS", "gemini-flash-latest,gemini-2.5-flash,gemini-flash-lite-latest").split(",")
+            "GEMINI_MODELS", "gemini-flash-latest,gemini-3.8-flash,gemini-flash-lite-latest").split(",")
             if m.strip()],
         gemini_embed_model=env("GEMINI_EMBED_MODEL", "gemini-embedding-001"),
         embed_dim=int(env("EMBED_DIM", "768")),
