@@ -8,11 +8,16 @@ One LLM provider is used for a whole run, so modes stay comparable.
 """
 from __future__ import annotations
 
+import hashlib
 import random
 import re
+import threading
 import time
 from collections import Counter, defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+import numpy as np
 
 from .llm import Provider
 from .prompts import format_context
@@ -77,6 +82,7 @@ class Row:
     citations: list[str]
     error: str = ""
     retrieval: str = ""  # mode actually used: none / bm25 / hybrid
+    chunk_ids: list[str] = field(default_factory=list)  # retrieved passages, reused by the judges
 
 
 def run_one(q: Question, mode: str, provider: Provider, retrievers: dict[str, Retriever], k: int = 6) -> Row:
@@ -99,7 +105,7 @@ def run_one(q: Question, mode: str, provider: Provider, retrievers: dict[str, Re
     predicted = parse_letters(raw, valid)
     return Row(q.id, q.source, q.chapter, mode, predicted, q.answers, q.is_correct(predicted),
                raw.strip()[:120], provider.name, round(time.time() - t0, 2),
-               [h.chunk.citation for h in hits], err, used)
+               [h.chunk.citation for h in hits], err, used, [h.chunk.id for h in hits])
 
 
 def summarize(rows: list[Row]) -> dict:
@@ -139,3 +145,42 @@ def summarize(rows: list[Row]) -> dict:
 
 def row_dict(r: Row) -> dict:
     return asdict(r)
+
+
+class ThrottledCachedEmbedder:
+    """Wraps an embedder for evaluation runs: query vectors are cached on disk and requests are
+    spaced out, because the free Gemini tier allows only ~100 embeddings per minute (a parallel
+    run otherwise silently degrades "hybrid" to BM25)."""
+
+    def __init__(self, inner, cache_path: Path, per_minute: int = 85):
+        self.inner, self.cache_path = inner, cache_path
+        self.model_id = inner.model_id
+        self.interval = 60.0 / per_minute
+        self._lock = threading.Lock()
+        self._last = 0.0
+        self.cache: dict[str, np.ndarray] = {}
+        if cache_path.exists():
+            with np.load(cache_path) as data:
+                self.cache = {k: data[k] for k in data.files}
+
+    @staticmethod
+    def _key(text: str) -> str:
+        return hashlib.sha256(f"{text}".encode()).hexdigest()[:24]
+
+    def embed(self, texts: list[str], is_query: bool = False) -> np.ndarray:
+        out = []
+        for t in texts:
+            key = self._key(t)
+            if key not in self.cache:
+                with self._lock:  # one request at a time, at most `per_minute` per minute
+                    wait = self._last + self.interval - time.monotonic()
+                    if wait > 0:
+                        time.sleep(wait)
+                    self.cache[key] = self.inner.embed([t], is_query=is_query)[0]
+                    self._last = time.monotonic()
+            out.append(self.cache[key])
+        return np.stack(out)
+
+    def save(self) -> None:
+        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(self.cache_path, **self.cache)

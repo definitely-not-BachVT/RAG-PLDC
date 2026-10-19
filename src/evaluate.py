@@ -18,7 +18,7 @@ from pathlib import Path
 
 from pldc.config import DATA_DIR, get_settings
 from pldc.embeddings import GeminiEmbedder
-from pldc.evaluation import MODES, row_dict, run_one, sample, summarize
+from pldc.evaluation import MODES, Row, ThrottledCachedEmbedder, row_dict, run_one, sample, summarize
 from pldc.llm import DeepSeekProvider, GeminiProvider
 from pldc.quiz import QuestionBank
 from pldc.search import Retriever
@@ -45,6 +45,8 @@ def main() -> int:
     ap.add_argument("--source", choices=["nganhang_tn", "eduquiz"], default=None)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--run-dir", type=Path, default=None,
+                    help="add/replace these modes in an existing run (rows of other modes are kept)")
     args = ap.parse_args()
 
     modes = [m for m in args.modes.split(",") if m]
@@ -55,34 +57,48 @@ def main() -> int:
     retrievers = {}
     if "bm25" in modes:
         retrievers["bm25"] = Retriever(None)
+    embedder = None
     if "hybrid" in modes:
-        retrievers["hybrid"] = Retriever(GeminiEmbedder())
+        # Free tier: ~100 embeddings/minute. Throttle + cache, or hybrid silently degrades to BM25.
+        embedder = ThrottledCachedEmbedder(GeminiEmbedder(), DATA_DIR / "eval" / "query_vectors.npz")
+        retrievers["hybrid"] = Retriever(embedder)
 
-    out_dir = DATA_DIR / "eval" / time.strftime("%Y%m%d-%H%M%S")
+    out_dir = args.run_dir or DATA_DIR / "eval" / time.strftime("%Y%m%d-%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
+    kept: list[Row] = []
+    if args.run_dir and (out_dir / "rows.jsonl").exists():
+        for line in (out_dir / "rows.jsonl").read_text(encoding="utf-8").splitlines():
+            r = Row(**json.loads(line))
+            if r.mode not in modes:
+                kept.append(r)
     jobs = [(q, m) for m in modes for q in questions]
     print(f"{len(questions)} questions x {len(modes)} modes = {len(jobs)} calls with {provider.name}"
-          f" ({getattr(provider, 'model', '')}) -> {out_dir}")
+          f" ({getattr(provider, 'model', '')}) -> {out_dir}", flush=True)
 
-    rows = []
+    rows: list[Row] = []
     t0 = time.time()
-    with ThreadPoolExecutor(args.workers) as pool, (out_dir / "rows.jsonl").open("w", encoding="utf-8") as f:
+    with ThreadPoolExecutor(args.workers) as pool:
         futures = [pool.submit(run_one, q, m, provider, retrievers) for q, m in jobs]
         for i, fut in enumerate(as_completed(futures), start=1):
-            row = fut.result()
-            rows.append(row)
-            f.write(json.dumps(row_dict(row), ensure_ascii=False) + "\n")
+            rows.append(fut.result())
             if i % 25 == 0 or i == len(jobs):
-                print(f"  {i}/{len(jobs)} done ({time.time() - t0:.0f}s)")
+                print(f"  {i}/{len(jobs)} done ({time.time() - t0:.0f}s)", flush=True)
+                if embedder:
+                    embedder.save()
+    rows = kept + rows
+    with (out_dir / "rows.jsonl").open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row_dict(row), ensure_ascii=False) + "\n")
 
     summ = summarize(rows)
+    all_modes = [m for m in MODES if any(r.mode == m for r in rows)]
     summ["config"] = {"provider": provider.name, "model": getattr(provider, "model", None),
-                      "questions": len(questions), "modes": modes, "seed": args.seed,
+                      "questions": len(questions), "modes": all_modes, "seed": args.seed,
                       "limit": args.limit, "source": args.source}
     (out_dir / "summary.json").write_text(json.dumps(summ, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print("\nmode     accuracy   n  errors unparsed avg_s")
-    for mode in modes:
+    for mode in all_modes:
         m = summ["modes"].get(mode, {})
         acc = f"{m['accuracy']:.1%}" if m.get("accuracy") is not None else "-"
         print(f"{mode:<8} {acc:>8} {m.get('n', 0):>4} {m.get('errors', 0):>6} {m.get('unparsed', 0):>8} "
