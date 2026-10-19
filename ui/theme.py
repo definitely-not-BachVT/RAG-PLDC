@@ -124,6 +124,30 @@ kbd {{ font-family: var(--sans); font-size: .75rem; border: 1px solid var(--rule
 .notice {{ margin-top: 1rem; padding: .8rem 1rem; border: 1px solid var(--rule); border-radius: 6px;
   background: var(--paper); max-width: 66ch; }}
 
+/* ---- Q&A notebook (chat): "Hỏi" in violet, "Đáp" in red, written in the margin -------- */
+.qa {{ position: relative; margin: 0 0 1.75rem; max-width: 66ch; }}
+.qa .who {{ position: absolute; left: calc(-1 * var(--margin) - 1.5rem); width: calc(var(--margin) - 6px);
+  text-align: center; font-family: var(--serif); font-style: italic; font-size: .95rem; top: .2rem; }}
+.qa.ask .who {{ color: var(--violet); }}
+.qa.answer .who {{ color: var(--red); }}
+.qa.ask .body {{ font-family: var(--serif); color: var(--violet); font-size: 1.125rem; line-height: 1.55;
+  font-weight: 500; white-space: pre-wrap; }}
+.qa.answer .body {{ font-family: var(--serif); font-size: 1rem; line-height: 1.65; }}
+.qa.answer .body h1, .qa.answer .body h2, .qa.answer .body h3, .qa.answer .body h4 {{
+  font-family: var(--serif); font-size: 1.0625rem; font-weight: 600; margin: 1rem 0 .3rem; }}
+.qa.answer .body p {{ margin: .4rem 0; }}
+.qa.answer .body hr {{ border: 0; border-top: 1px solid var(--rule); margin: 1rem 0; }}
+.qa + .qa.ask {{ padding-top: 1.25rem; border-top: 1px solid var(--rule); }}
+.lede {{ color: var(--graphite); max-width: 60ch; margin: -.5rem 0 1.25rem; }}
+.suggest {{ border-top: 1px solid var(--rule); max-width: 66ch; }}
+.suggest button {{ display: block; width: 100%; text-align: left; padding: .7rem .5rem; border-bottom: 1px solid var(--rule);
+  font-family: var(--serif); font-size: 1.0625rem; color: var(--violet); background: none; cursor: pointer; }}
+.suggest button:hover {{ background: var(--violet-wash); }}
+.composer {{ position: sticky; bottom: 0; background: var(--sheet); padding: .75rem 0 1rem; margin-top: 1rem;
+  border-top: 1px solid var(--rule); z-index: 5; }}
+.composer textarea {{ font-family: var(--serif) !important; font-size: 1.0625rem !important; color: var(--violet) !important; }}
+.composer .hint {{ color: var(--graphite); font-size: .8125rem; }}
+
 /* ---- source panel (right drawer) -------------------------------------------- */
 .source-panel {{ background: var(--paper) !important; border-left: 1px solid var(--rule); }}
 .source-panel .excerpt {{ font-family: var(--serif); font-size: .9375rem; line-height: 1.6;
@@ -168,11 +192,14 @@ CROSS_SVG = ('<svg class="margin-mark" viewBox="0 0 26 26" aria-hidden="true"><p
              'fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>')
 
 # Citation markers [n] in AI text are turned into <sup class="cite" data-n="n">; one delegated
-# listener forwards clicks to Python as a 'cite' event.
+# listener forwards clicks to Python as a 'cite' event. The nearest [data-scope] ancestor says
+# which answer the number belongs to (each chat answer has its own numbered sources).
 CITE_JS = """
 document.addEventListener('click', (e) => {
   const c = e.target.closest('.cite');
-  if (c) emitEvent('cite', Number(c.dataset.n));
+  if (!c) return;
+  const holder = c.closest('[data-scope]');
+  emitEvent('cite', {n: Number(c.dataset.n), scope: holder ? holder.dataset.scope : ''});
 });
 """
 

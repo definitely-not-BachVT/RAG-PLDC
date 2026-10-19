@@ -23,13 +23,17 @@ Người học làm bài bằng **mực tím**, máy chấm bằng **mực đỏ
 khoanh tròn đáp án đúng (hiệu ứng duy nhất, tắt khi máy bật giảm chuyển động), lời giải như lời phê.
 Chữ: Literata (nội dung) + Be Vietnam Pro (giao diện). Phím tắt: `A–D`/`1–4` chọn, `Enter` nộp,
 `←/→` chuyển câu, `H` hỏi AI. Bấm số nguồn trong lời giải để mở trang PDF gốc ở bảng bên phải.
-Hiện có màn Luyện tập / Ôn câu sai / Tổng kết; màn Hỏi đáp đang làm.
+Màn **Hỏi đáp** (`/hoi-dap`) trình bày như sách hỏi đáp pháp luật: "Hỏi" mực tím, "Đáp" lề đỏ, số nguồn
+bấm được; lịch sử lưu theo trình duyệt, câu hỏi gợi ý khi chưa có gì, nút thử lại khi AI lỗi.
+Màn **Luyện tập** (`/`, `/?mode=review` cho Ôn câu sai) có tổng kết và làm lại câu sai.
 
 | File | Vai trò |
 |---|---|
 | `ui/main.py` | Điểm khởi chạy, khóa ký cookie (`data/.ui_secret`, không commit) |
 | `ui/theme.py` | Hệ thống thiết kế: màu, chữ, CSS, nét khoanh và dấu chấm bài (SVG) |
-| `ui/quiz_page.py` | Màn luyện tập: thanh bên, tờ bài, chấm, lời giải AI, tổng kết, phím tắt |
+| `ui/shell.py` | Khung trang dùng chung: thanh bên (tên app, điều hướng), thanh menu trên điện thoại |
+| `ui/quiz_page.py` | Màn luyện tập: bộ lọc, tờ bài, chấm, lời giải AI, tổng kết, phím tắt |
+| `ui/chat_page.py` | Màn hỏi đáp: Hỏi/Đáp, stream câu trả lời, nguồn, đánh giá, thử lại |
 | `ui/sources.py` | Số trích dẫn bấm được và bảng xem trang PDF gốc |
 | `ui/services.py` | Tài nguyên dùng chung, mã người dùng (cookie), thông báo lỗi dễ hiểu |
 | `src/pldc/practice.py` | Logic phiên luyện tập dùng chung cho mọi giao diện |

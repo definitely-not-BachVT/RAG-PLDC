@@ -10,6 +10,7 @@ from nicegui import ui
 
 sys.path.insert(0, str(Path(__file__).parent))  # sibling modules (theme, services, ...)
 
+import chat_page  # noqa: E402
 import quiz_page  # noqa: E402
 from pldc.config import DATA_DIR  # noqa: E402
 from theme import apply_theme  # noqa: E402
@@ -26,10 +27,17 @@ def storage_secret() -> str:
 
 
 @ui.page("/")
-def practice_page() -> None:
+def practice_page(mode: str | None = None) -> None:
     ui.page_title("Luyện trắc nghiệm – Pháp luật đại cương")
     apply_theme()
-    quiz_page.build()
+    quiz_page.build(mode)
+
+
+@ui.page("/hoi-dap")
+def chat() -> None:
+    ui.page_title("Hỏi đáp – Pháp luật đại cương")
+    apply_theme()
+    chat_page.build()
 
 
 if __name__ in {"__main__", "__mp_main__"}:

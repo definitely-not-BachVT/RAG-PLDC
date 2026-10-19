@@ -31,7 +31,7 @@ def get_settings() -> Settings:
     env = os.environ.get
     return Settings(
         deepseek_api_key=env("DEEPSEEK_API_KEY", "").strip(),
-        deepseek_model=env("DEEPSEEK_MODEL", "deepseek-chat"),
+        deepseek_model=env("DEEPSEEK_MODEL", "deepseek-flash"),
         deepseek_base_url=env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         google_api_key=env("GOOGLE_API_KEY", "").strip(),
         gemini_models=[m.strip() for m in env(

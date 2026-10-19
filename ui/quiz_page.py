@@ -9,14 +9,19 @@ from pldc import practice
 from pldc.quiz import BANKS, explain
 from services import bank, error_message, llm, retriever, store, user_id
 from sources import SourcePanel, with_cites
+import shell
 from theme import CIRCLE_SVG, CROSS_SVG, TICK_SVG
 
 SOURCE_LABELS = {None: "Tất cả câu hỏi", "nganhang_tn": "Ngân hàng theo chương", "eduquiz": "Đề ôn PTIT 2025"}
 
 
-def build() -> None:
+def build(mode: str | None = None) -> None:
+    """`mode` comes from ?mode= (links from other pages): switch to practice/review if asked."""
     sid, qbank, db = user_id(), bank(), store()
     s = practice.load_session(qbank, db, sid)
+    if mode in (practice.PRACTICE, practice.REVIEW) and mode != s["mode"]:
+        s = practice.new_session(qbank, db, sid, mode=mode, source=s["source"],
+                                 chapter=s["chapter"], shuffle=s["shuffle"])
     db.save_quiz(sid, s)  # a brand-new session must survive a reload too (keeps its shuffle)
     view = {"picked": [], "just_submitted": None, "busy": False}
     panel = SourcePanel()
@@ -42,8 +47,7 @@ def build() -> None:
 
     # ---- left rail ---------------------------------------------------------------
     # Filled at the end of build(), once every handler it references exists.
-    # value=None lets Quasar decide: open on desktop, closed (menu button) on phones.
-    drawer = ui.left_drawer(value=None, fixed=True).classes("rail").props("width=280 breakpoint=900")
+    drawer = shell.frame()
 
     @ui.refreshable
     def rail() -> None:
@@ -51,18 +55,7 @@ def build() -> None:
             rail_content()
 
     def rail_content() -> None:
-        ui.html('<div class="wordmark">Pháp luật<br>đại cương</div>'
-                '<div class="tagline">Ôn thi theo giáo trình PTIT</div>', sanitize=False).classes("mb-5")
-        due = db.review_stats(sid)["due"]
-        nav = [("Luyện tập", practice.PRACTICE, ""),
-               ("Ôn câu sai", practice.REVIEW, f"{due} câu" if due else "")]
-        for label, mode, count in nav:
-            active = " active" if s["mode"] == mode else ""
-            ui.html(f'<span>{label}</span><span class="count">{count}</span>', sanitize=False) \
-                .classes(f"nav-link{active}").props('role="button" tabindex="0"') \
-                .on("click", lambda m=mode: restart(mode=m))
-        ui.html('<span>Hỏi đáp</span><span class="count" style="color:var(--graphite)">sắp có</span>',
-                sanitize=False).classes("nav-link soon")
+        shell.nav(s["mode"], db.review_stats(sid)["due"], on_mode=lambda m: restart(mode=m))
 
         if s["mode"] == practice.PRACTICE:
             ui.label("Bộ câu hỏi").classes("group-label")
@@ -92,15 +85,10 @@ def build() -> None:
             ui.button("Làm lại từ đầu", on_click=lambda: restart()).props("flat no-caps dense align=left") \
                 .classes("chapter link")
 
-    with ui.element("div").classes("mobile-bar"):
-        ui.button(icon="menu", on_click=drawer.toggle).props('flat round aria-label="Mở menu"')
-        ui.label("Pháp luật đại cương").classes("font-semibold")
-
     def show_summary() -> None:
         s["view"] = "summary"
         save()
         sheet.refresh()
-        drawer.value = drawer.value  # keep drawer state on mobile
 
     # ---- actions -----------------------------------------------------------------------
     def pick(label: str) -> None:
@@ -189,7 +177,7 @@ def build() -> None:
         sheet.refresh()
 
     async def on_cite(e) -> None:
-        n = int(e.args)
+        n = int(e.args["n"])
         sources = view.get("sources") or []
         if 1 <= n <= len(sources):
             await panel.show(n, sources[n - 1])
