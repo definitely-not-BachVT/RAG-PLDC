@@ -60,6 +60,7 @@ class BM25:
 class Hit:
     chunk: Chunk
     score: float
+    similarity: float | None = None  # cosine to the query (None when only BM25 was used)
 
 
 def corpus_hash(chunks: list[Chunk]) -> str:
@@ -134,15 +135,21 @@ class Retriever:
         hits, self.last_mode = self.search_with_mode(query, k)
         return hits
 
-    def search_with_mode(self, query: str, k: int = 6) -> tuple[list[Hit], str]:
+    def search_with_mode(self, query: str, k: int = 6, min_similarity: float | None = None,
+                         margin: float | None = None) -> tuple[list[Hit], str]:
         """Like search(), also returning the mode actually used ("hybrid" or "bm25");
-        safe to call from several threads (doesn't rely on last_mode)."""
+        safe to call from several threads (doesn't rely on last_mode).
+
+        Optional gating (hybrid only): drop hits whose cosine to the query is below
+        `min_similarity`, or more than `margin` below the best hit. May return fewer than k."""
         rankings = [np.argsort(-self.bm25.scores(tokenize(query)))[:CANDIDATES]]
         mode = "bm25"
+        sims = None
         if self.embedder is not None and time.monotonic() >= self._dense_off_until:
             try:
                 q = self.embedder.embed([query], is_query=True)[0]
-                rankings.append(np.argsort(-(self.vecs @ q))[:CANDIDATES])
+                sims = self.vecs @ q
+                rankings.append(np.argsort(-sims)[:CANDIDATES])
                 mode = "hybrid"
             except Exception as exc:  # noqa: BLE001 - keep chat working on keywords alone
                 # e.g. daily free quota used up: don't make every question wait for a retry.
@@ -153,4 +160,36 @@ class Retriever:
             for rank, idx in enumerate(ranking):
                 fused[int(idx)] = fused.get(int(idx), 0.0) + 1.0 / (RRF_K + rank + 1)
         best = sorted(fused.items(), key=lambda kv: -kv[1])[:k]
-        return [Hit(self.chunks[i], s) for i, s in best], mode
+        hits = [Hit(self.chunks[i], s, float(sims[i]) if sims is not None else None) for i, s in best]
+        if sims is not None and hits and (min_similarity is not None or margin is not None):
+            top = max(h.similarity for h in hits)
+            hits = [h for h in hits
+                    if (min_similarity is None or h.similarity >= min_similarity)
+                    and (margin is None or h.similarity >= top - margin)]
+        return hits, mode
+
+
+def build_retriever() -> Retriever:
+    """The app's retriever: hybrid with the configured embedder (EMBEDDER=gemini|local).
+
+    Falls back to the Gemini index if the local model/index is missing, and to keywords only if
+    there is no Gemini key.
+    """
+    from .config import get_settings, index_dir_for  # local imports: keep module import light
+    from .embeddings import GeminiEmbedder, LocalEmbedder
+
+    if get_settings().embedder == "local":
+        try:
+            local = LocalEmbedder()
+            if (index_dir_for(local.model_id) / "manifest.json").exists():
+                return Retriever(local, index_dir=index_dir_for(local.model_id))
+            log.warning("bge-m3 index missing; run: python src/build_index.py --embedder local")
+        except RuntimeError as exc:
+            log.warning("local embedder unavailable (%s); using Gemini", exc)
+    if not (INDEX_DIR / "manifest.json").exists():
+        raise FileNotFoundError("Chưa có chỉ mục tìm kiếm. Chạy: python src/build_index.py")
+    try:
+        embedder = GeminiEmbedder()
+    except RuntimeError:
+        embedder = None  # no Gemini key: keyword search only
+    return Retriever(embedder)

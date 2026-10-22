@@ -1,10 +1,9 @@
-"""The provider priority is DeepSeek -> Gemini; fallback must happen only on availability errors."""
+"""Providers are tried in order (Gemini models); fallback must happen only on availability errors."""
 import httpx
-import openai
 import pytest
 
 from pldc.config import get_settings
-from pldc.llm import AllProvidersFailed, DeepSeekProvider, FallbackLLM, build_llm
+from pldc.llm import AllProvidersFailed, FallbackLLM, GeminiProvider, build_llm
 
 
 class FakeProvider:
@@ -47,36 +46,22 @@ def test_all_failed():
         FallbackLLM([FakeProvider("A", error=ConnectionError())]).complete(MSGS)
 
 
-def test_deepseek_error_classification():
-    p = DeepSeekProvider("k", "m", "http://127.0.0.1:9", timeout=1)
-    req = httpx.Request("POST", "http://x")
-
-    def status(code):
-        return openai.APIStatusError("e", response=httpx.Response(code, request=req),
-                                     body=None)
-
-    assert p.should_fall_back(openai.APIConnectionError(request=req))
-    assert p.should_fall_back(status(402))  # out of balance
-    assert p.should_fall_back(status(429))
-    assert p.should_fall_back(status(503))
-    assert not p.should_fall_back(status(400))
+def test_no_key_means_no_llm(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "")
+    with pytest.raises(AllProvidersFailed):
+        build_llm()
 
 
 @pytest.mark.live
-def test_live_unreachable_deepseek_falls_back_to_gemini(monkeypatch):
-    """Real call: DeepSeek pointed at a closed port must fall back to Gemini quickly."""
+def test_live_gemini_answers():
+    """Real call through the Gemini chain."""
     if not get_settings().google_api_key:
         pytest.skip("GOOGLE_API_KEY not set")
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-invalid")
-    monkeypatch.setenv("DEEPSEEK_BASE_URL", "http://127.0.0.1:9")
-    llm = build_llm()
-    assert llm.provider_names[0] == "DeepSeek"
-    text, provider = llm.complete([{"role": "user", "content": "Trả lời đúng một từ: xin chào"}])
+    text, provider = build_llm().complete([{"role": "user", "content": "Trả lời đúng một từ: xin chào"}])
     assert provider.startswith("Gemini") and text.strip()
 
 
 def test_gemini_timeout_falls_back():
-    from pldc.llm import GeminiProvider
     p = GeminiProvider("k", "m", timeout=1)
     assert p.should_fall_back(httpx.ReadTimeout("timed out"))
     assert p.should_fall_back(httpx.ConnectError("refused"))

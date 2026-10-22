@@ -9,7 +9,7 @@ Hai tính năng, viết hoàn toàn bằng Python (giao diện Streamlit):
 
 ```bash
 uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
-cp .env.example .env                      # điền DEEPSEEK_API_KEY, GOOGLE_API_KEY
+cp .env.example .env                      # điền GOOGLE_API_KEY
 
 python src/parse_documents.py             # PDF -> data/processed/*.jsonl
 python src/build_index.py                 # embed -> data/index/ (chỉ chạy lại khi dữ liệu đổi)
@@ -21,7 +21,7 @@ streamlit run app/main.py                 # giao diện cũ (Streamlit)
 ### Giao diện mới (`ui/`, NiceGUI): "Vở bài tập và lời phê"
 Người học làm bài bằng **mực tím**, máy chấm bằng **mực đỏ** trên trang vở có lề đỏ: dấu ✓/✗ ở lề,
 khoanh tròn đáp án đúng (hiệu ứng duy nhất, tắt khi máy bật giảm chuyển động), lời giải như lời phê.
-Chữ: Literata (nội dung) + Be Vietnam Pro (giao diện). Phím tắt: `A–D`/`1–4` chọn, `Enter` nộp,
+Chữ: Noto Serif (nội dung) + Be Vietnam Pro (giao diện), tự host trong `ui/fonts/` để luôn hiển thị đúng dấu tiếng Việt. Phím tắt: `A–D`/`1–4` chọn, `Enter` nộp,
 `←/→` chuyển câu, `H` hỏi AI. Bấm số nguồn trong lời giải để mở trang PDF gốc ở bảng bên phải.
 Màn **Hỏi đáp** (`/hoi-dap`) trình bày như sách hỏi đáp pháp luật: "Hỏi" mực tím, "Đáp" lề đỏ, số nguồn
 bấm được; lịch sử lưu theo trình duyệt, câu hỏi gợi ý khi chưa có gì, nút thử lại khi AI lỗi.
@@ -38,7 +38,7 @@ Màn **Luyện tập** (`/`, `/?mode=review` cho Ôn câu sai) có tổng kết 
 | `ui/services.py` | Tài nguyên dùng chung, mã người dùng (cookie), thông báo lỗi dễ hiểu |
 | `src/pldc/practice.py` | Logic phiên luyện tập dùng chung cho mọi giao diện |
 
-Test: `pytest` (test đơn vị) · `pytest -m live` (gọi API thật, kiểm tra cơ chế chuyển DeepSeek → Gemini).
+Test: `pytest` (test đơn vị) · `pytest -m live` (gọi API thật, kiểm tra chuỗi model Gemini).
 
 ## Kiến trúc
 
@@ -46,15 +46,15 @@ Test: `pytest` (test đơn vị) · `pytest -m live` (gọi API thật, kiểm t
 data/*.pdf ──parsers──▶ data/processed/*.jsonl ──chunking + Gemini embedding──▶ data/index/
                                                                                       │
                  Streamlit app/ ──▶ pldc.chat / pldc.quiz ──▶ pldc.search (BM25 + vector, RRF)
-                                                 └──────────▶ pldc.llm (DeepSeek → Gemini)
+                                                 └──────────▶ pldc.llm (Gemini, nhiều model)
 ```
 
 | Thành phần | File | Ghi chú |
 |---|---|---|
 | Parser PDF | `src/parsers/` | giáo trình theo mục, slide, 2 ngân hàng câu hỏi |
 | Cấu hình | `src/pldc/config.py` | đọc `.env` |
-| LLM | `src/pldc/llm.py` | ưu tiên DeepSeek, lỗi kết nối / hết hạn mức / 429 / 5xx thì chuyển sang lần lượt các model Gemini |
-| Embedding | `src/pldc/embeddings.py` | Gemini `gemini-embedding-001` (DeepSeek không có API embedding) |
+| LLM | `src/pldc/llm.py` | lần lượt các model Gemini trong `GEMINI_MODELS`; lỗi kết nối / hết hạn mức / 429 / 5xx thì chuyển sang model kế tiếp |
+| Embedding | `src/pldc/embeddings.py` | Gemini `gemini-embedding-001` |
 | Tìm kiếm | `src/pldc/search.py` | BM25 (âm tiết + cặp âm tiết) kết hợp vector; không gọi được embedding thì chỉ dùng BM25 |
 | Prompt | `src/pldc/prompts.py` | bắt buộc dẫn nguồn, nói rõ khi tài liệu không đề cập hoặc đáp án lỗi thời |
 | Trắc nghiệm | `src/pldc/quiz.py` | áp dụng `data/answer_overrides.json`, bỏ câu không có đáp án |
@@ -66,7 +66,7 @@ data/*.pdf ──parsers──▶ data/processed/*.jsonl ──chunking + Gemini
 ## Lộ trình
 
 - [x] Parser cho 4 tài liệu PDF
-- [x] Khung RAG + chuyển nhà cung cấp DeepSeek → Gemini
+- [x] Khung RAG + chuyển lần lượt giữa các model Gemini
 - [x] Giao diện hỏi đáp và luyện trắc nghiệm
 - [ ] Script đánh giá: cho bot làm 676 câu trắc nghiệm, so sánh độ chính xác khi có và không có RAG
 - [ ] Gán chương cho câu EduQuiz và slide (hiện `chapter: null`) để lọc theo chương

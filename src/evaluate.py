@@ -2,7 +2,7 @@
 
 Examples:
   python src/evaluate.py --limit 60                     # quick stratified sample, all 3 modes
-  python src/evaluate.py --modes none,hybrid --provider deepseek
+  python src/evaluate.py --modes none,hybrid --model gemini-flash-lite-latest
   python src/evaluate.py                                # everything (676 questions x 3 modes)
 Results go to data/eval/<timestamp>/ (rows.jsonl + summary.json).
 """
@@ -16,23 +16,20 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from pldc.config import DATA_DIR, get_settings
-from pldc.embeddings import GeminiEmbedder
-from pldc.evaluation import MODES, Row, ThrottledCachedEmbedder, row_dict, run_one, sample, summarize
-from pldc.llm import DeepSeekProvider, GeminiProvider
+from pldc.config import DATA_DIR, get_settings, index_dir_for
+from pldc.embeddings import GeminiEmbedder, LocalEmbedder
+from pldc.evaluation import (MODES, VARIANTS, Row, ThrottledCachedEmbedder, row_dict, run_one, sample,
+                             summarize)
+from pldc.llm import GeminiProvider
 from pldc.quiz import QuestionBank
 from pldc.search import Retriever
 
 
-def make_provider(name: str):
+def make_provider(model: str | None):
     s = get_settings()
-    if name == "deepseek":
-        if not s.deepseek_api_key:
-            sys.exit("DEEPSEEK_API_KEY is not set")
-        return DeepSeekProvider(s.deepseek_api_key, s.deepseek_model, s.deepseek_base_url, s.llm_timeout * 2)
     if not s.google_api_key:
         sys.exit("GOOGLE_API_KEY is not set")
-    return GeminiProvider(s.google_api_key, s.gemini_models[0], s.llm_timeout * 2)
+    return GeminiProvider(s.google_api_key, model or s.gemini_models[0], s.llm_timeout * 2)
 
 
 def main() -> int:
@@ -40,8 +37,8 @@ def main() -> int:
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--limit", type=int, default=None, help="stratified sample size (default: all)")
-    ap.add_argument("--modes", default=",".join(MODES), help="comma list of none,bm25,hybrid")
-    ap.add_argument("--provider", choices=["deepseek", "gemini"], default="deepseek")
+    ap.add_argument("--modes", default="none,bm25,hybrid", help="comma list of: " + ",".join(MODES))
+    ap.add_argument("--model", default=None, help="Gemini model (default: first of GEMINI_MODELS)")
     ap.add_argument("--source", choices=["nganhang_tn", "eduquiz"], default=None)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--workers", type=int, default=6)
@@ -53,15 +50,19 @@ def main() -> int:
     if bad := set(modes) - set(MODES):
         sys.exit(f"unknown modes: {bad}")
     questions = sample(QuestionBank(), args.limit, args.seed, args.source)
-    provider = make_provider(args.provider)
+    provider = make_provider(args.model)
     retrievers = {}
-    if "bm25" in modes:
+    kinds = {VARIANTS[m][0] for m in modes if m != "none"}
+    if "bm25" in kinds:
         retrievers["bm25"] = Retriever(None)
     embedder = None
-    if "hybrid" in modes:
+    if "hybrid" in kinds:
         # Free tier: ~100 embeddings/minute. Throttle + cache, or hybrid silently degrades to BM25.
         embedder = ThrottledCachedEmbedder(GeminiEmbedder(), DATA_DIR / "eval" / "query_vectors.npz")
         retrievers["hybrid"] = Retriever(embedder)
+    if "local" in kinds:
+        local = LocalEmbedder()
+        retrievers["local"] = Retriever(local, index_dir=index_dir_for(local.model_id))
 
     out_dir = args.run_dir or DATA_DIR / "eval" / time.strftime("%Y%m%d-%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -106,7 +107,7 @@ def main() -> int:
         for g, v in m.get("groups", {}).items():
             if "chương" not in g:
                 print(f"           {g}: {v['accuracy']:.1%} (n={v['n']})")
-        if mode == "hybrid" and m.get("retrieval_used", {}).get("bm25"):
+        if mode not in ("none", "bm25") and m.get("retrieval_used", {}).get("bm25"):
             print(f"           ! {m['retrieval_used']['bm25']} câu hybrid đã rơi về BM25 (embedding lỗi/hết hạn mức)")
         if "vs_none" in m:
             print(f"           so với 'none': giúp đúng {len(m['vs_none']['helped'])}, "

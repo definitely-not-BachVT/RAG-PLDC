@@ -7,7 +7,6 @@ dependencies = [
     "google-genai",
     "nicegui",
     "numpy",
-    "openai",
     "pdfminer.six",
     "pypdfium2",
     "python-dotenv",
@@ -26,5 +25,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["live: calls real LLM/embedding APIs (needs keys in .env)"]
-addopts = "-m 'not live'"
+markers = [
+    "live: calls real LLM/embedding APIs (needs keys in .env)",
+    "slow: loads the local bge-m3 model (~2 GB)",
+]
+addopts = "-m 'not live and not slow'"

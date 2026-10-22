@@ -4,7 +4,9 @@ The learner writes in violet ink (mực tím), the grader marks in red ink (mự
 on cool white ruled paper with a red margin. One motion only: the red circle drawn
 around the correct answer when the learner submits.
 """
-from nicegui import ui
+from pathlib import Path
+
+from nicegui import app, ui
 
 PAPER = "#FAFBFC"
 SHEET = "#FFFFFF"
@@ -14,17 +16,21 @@ RED = "#C62828"  # mực đỏ: everything the grader does (marks, citations)
 RULE = "#D6E0EE"  # ruled lines
 GRAPHITE = "#667085"  # secondary text
 
-FONTS = ("https://fonts.googleapis.com/css2?"
-         "family=Be+Vietnam+Pro:wght@400;500;600"
-         "&family=Literata:ital,opsz,wght@0,7..72,400..700;1,7..72,400"
-         "&display=swap&subset=vietnamese")
+# Self-hosted (ui/fonts/, served at /fonts): a Google Fonts outage or slow network used to leave the
+# page in Georgia, which lacks Vietnamese stacked marks ("tiê`n" instead of "tiền").
+# Both families are built for Vietnamese. Re-download from Google Fonts (latin, latin-ext,
+# vietnamese subsets of Be Vietnam Pro 400/500/600 and Noto Serif ital,wght 400..700).
+FONTS_DIR = Path(__file__).parent / "fonts"
+FONTS = "/fonts/fonts.css"
 
 CSS = f"""
 :root {{
   --paper: {PAPER}; --sheet: {SHEET}; --ink: {INK}; --violet: {VIOLET}; --red: {RED};
   --rule: {RULE}; --graphite: {GRAPHITE};
   --violet-wash: #F3F0FA; --red-wash: #FCF1F1;
-  --serif: 'Literata', Georgia, serif; --sans: 'Be Vietnam Pro', system-ui, sans-serif;
+  /* fallbacks also cover Vietnamese (Georgia does not) */
+  --serif: 'Noto Serif', 'Times New Roman', Cambria, serif;
+  --sans: 'Be Vietnam Pro', 'Segoe UI', Arial, sans-serif;
   --margin: 64px;  /* width of the red-ruled margin on the sheet */
 }}
 body {{ background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; }}
@@ -204,8 +210,10 @@ document.addEventListener('click', (e) => {
 """
 
 
+app.add_static_files("/fonts", FONTS_DIR)
+
+
 def apply_theme() -> None:
-    ui.add_head_html(f'<link rel="preconnect" href="https://fonts.googleapis.com">'
-                     f'<link rel="stylesheet" href="{FONTS}"><style>{CSS}</style>'
+    ui.add_head_html(f'<link rel="stylesheet" href="{FONTS}"><style>{CSS}</style>'
                      f'<script>{CITE_JS}</script>')
     ui.colors(primary=VIOLET, secondary=INK, accent=RED, negative=RED, positive=VIOLET)

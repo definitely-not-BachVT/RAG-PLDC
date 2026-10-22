@@ -71,7 +71,7 @@ def _format_question(q: Question) -> str:
 
 
 def explain(q: Question, chosen: list[str], retriever: Retriever, llm: FallbackLLM,
-            k: int = 5) -> tuple[list[Hit], StreamResult]:
+            k: int = 3) -> tuple[list[Hit], StreamResult]:  # 3: best in the MC evaluation
     correct_text = " ".join(q.option_text(a) for a in q.answers)
     chosen_text = " ".join(q.option_text(c) for c in chosen if c not in q.answers)
     hits = retriever.search(f"{q.question}\n{correct_text}\n{chosen_text}".strip(), k=k)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .config import get_settings
 from .llm import FallbackLLM, Message, StreamResult
 from .prompts import CHAT_SYSTEM, format_context
 from .search import Hit, Retriever
@@ -26,8 +27,8 @@ def retrieval_query(question: str, history: list[Message]) -> str:
 
 
 def answer(question: str, history: list[Message], retriever: Retriever, llm: FallbackLLM,
-           k: int = 6) -> ChatAnswer:
-    hits = retriever.search(retrieval_query(question, history), k=k)
+           k: int | None = None) -> ChatAnswer:
+    hits = retriever.search(retrieval_query(question, history), k=k or get_settings().chat_top_k)
     messages: list[Message] = [{"role": "system", "content": CHAT_SYSTEM}]
     messages += history[-MAX_HISTORY_TURNS:]
     messages.append({"role": "user", "content": f"{format_context(hits)}\n\nCâu hỏi: {question}"})

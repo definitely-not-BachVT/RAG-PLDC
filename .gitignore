@@ -40,3 +40,5 @@ desktop.ini
 # --- Logs ----------------------------------------------------------------------
 *.log
 data/eval/
+models/
+data/index-bge-m3/

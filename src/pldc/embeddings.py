@@ -1,24 +1,30 @@
-"""Text embeddings. DeepSeek has no embedding API, so this always uses Gemini.
+"""Text embeddings.
 
-Swap in another class with the same `embed()` signature (e.g. local bge-m3) if needed.
+Two interchangeable embedders with the same `embed()` / `model_id` interface:
+  * GeminiEmbedder  - API; free tier allows ~100 texts/minute and ~1000/day.
+  * LocalEmbedder   - BAAI/bge-m3 on CPU via onnxruntime; no quota, no network.
+Pick one with EMBEDDER=gemini|local (see build_embedder); each has its own index directory.
 """
 from __future__ import annotations
 
 import logging
+import threading
 import time
+from pathlib import Path
 
 import numpy as np
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
-from .config import Settings, get_settings
+from .config import ROOT, Settings, get_settings
 
 log = logging.getLogger(__name__)
 
 BATCH_SIZE = 50
 MAX_ATTEMPTS = 6  # indexing: wait out free-tier rate limits
 QUERY_ATTEMPTS = 2  # queries: fail fast, the retriever falls back to BM25
+QUERY_TIMEOUT_S = 8  # a hung query embedding delays the whole answer (golden test caught a 32 s wait)
 
 
 class GeminiEmbedder:
@@ -50,6 +56,8 @@ class GeminiEmbedder:
 
     def _embed_batch(self, batch: list[str], task: str, attempts: int) -> list[list[float]]:
         config = genai_types.EmbedContentConfig(task_type=task, output_dimensionality=self.dim)
+        if task == "RETRIEVAL_QUERY":
+            config.http_options = genai_types.HttpOptions(timeout=QUERY_TIMEOUT_S * 1000)
         for attempt in range(attempts):
             try:
                 resp = self.client.models.embed_content(model=self.model, contents=batch, config=config)
@@ -62,3 +70,66 @@ class GeminiEmbedder:
                 log.warning("embed %s, retrying in %ss", exc.code, wait)
                 time.sleep(wait)
         raise AssertionError("unreachable")
+
+
+class LocalEmbedder:
+    """BAAI/bge-m3 dense embeddings (1024-d) on CPU with onnxruntime.
+
+    Uses the ONNX export from the model repo (no pickled weights, no torch). Dense vectors are
+    the normalized [CLS] state, as in the reference implementation; queries need no prefix.
+    """
+
+    MAX_TOKENS = 512  # chunks are ~1000 chars (~300 tokens); longer text is truncated
+    BATCH = 8
+
+    def __init__(self, model_dir: Path | None = None, threads: int | None = None):
+        import onnxruntime as ort  # imported lazily: only needed when this embedder is used
+        from tokenizers import Tokenizer
+
+        model_dir = model_dir or ROOT / "models" / "bge-m3" / "onnx"
+        if not (model_dir / "model.onnx").exists():
+            raise RuntimeError(f"Chưa có model bge-m3 tại {model_dir}. Xem README để tải.")
+        self.tokenizer = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
+        self.tokenizer.enable_truncation(self.MAX_TOKENS)
+        self.tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
+        opts = ort.SessionOptions()
+        if threads:
+            opts.intra_op_num_threads = threads
+        self.session = ort.InferenceSession(str(model_dir / "model.onnx"), opts,
+                                            providers=["CPUExecutionProvider"])
+        self.input_names = {i.name for i in self.session.get_inputs()}
+        self.output_names = [o.name for o in self.session.get_outputs()]
+        self.dim = 1024
+        self._lock = threading.Lock()  # one batch at a time (eval calls from many threads)
+
+    @property
+    def model_id(self) -> str:
+        return "local:bge-m3:1024"
+
+    def embed(self, texts: list[str], is_query: bool = False) -> np.ndarray:
+        with self._lock:
+            return self._embed(texts, is_query)
+
+    def _embed(self, texts: list[str], is_query: bool) -> np.ndarray:
+        out = []
+        for i in range(0, len(texts), self.BATCH):
+            enc = self.tokenizer.encode_batch(texts[i:i + self.BATCH])
+            feed = {"input_ids": np.array([e.ids for e in enc], dtype=np.int64),
+                    "attention_mask": np.array([e.attention_mask for e in enc], dtype=np.int64)}
+            feed = {k: v for k, v in feed.items() if k in self.input_names}
+            result = dict(zip(self.output_names, self.session.run(None, feed)))
+            if "sentence_embedding" in result:  # the repo's ONNX export pools for us
+                vecs = result["sentence_embedding"]
+            else:  # plain encoder export: bge-m3 dense = [CLS] token
+                vecs = result["token_embeddings"][:, 0]
+            out.append(vecs.astype(np.float32))
+            if not is_query and len(texts) > self.BATCH:
+                log.info("embedded %d/%d", min(i + self.BATCH, len(texts)), len(texts))
+        vecs = np.concatenate(out)
+        return vecs / np.linalg.norm(vecs, axis=1, keepdims=True).clip(min=1e-12)
+
+
+def build_embedder(settings: Settings | None = None):
+    """The configured embedder (EMBEDDER=gemini|local)."""
+    s = settings or get_settings()
+    return LocalEmbedder() if s.embedder == "local" else GeminiEmbedder(s)

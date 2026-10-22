@@ -17,7 +17,7 @@ from pathlib import Path
 from pldc.chunking import Chunk
 from pldc.config import INDEX_DIR, get_settings
 from pldc.judging import audit_key, judge_support
-from pldc.llm import DeepSeekProvider
+from pldc.llm import GeminiProvider
 from pldc.quiz import QuestionBank
 from pldc.search import Hit
 
@@ -42,9 +42,11 @@ def hits_for(row: dict | None, chunks: dict[str, Chunk]) -> list[Hit]:
     return [Hit(chunks[i], 0.0) for i in (row or {}).get("chunk_ids", []) if i in chunks]
 
 
-def provider(model: str) -> DeepSeekProvider:
+def provider(model: str) -> GeminiProvider:
     s = get_settings()
-    return DeepSeekProvider(s.deepseek_api_key, model, s.deepseek_base_url, timeout=180)
+    if not s.google_api_key:
+        sys.exit("GOOGLE_API_KEY is not set")
+    return GeminiProvider(s.google_api_key, model, timeout=180)
 
 
 def suspects(by_q: dict) -> list[str]:
@@ -159,13 +161,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("run", type=Path)
     ap.add_argument("task", choices=["keys", "support"])
-    ap.add_argument("--model", default=None, help="judge model (keys: deepseek-v4-pro, support: deepseek-flash)")
+    ap.add_argument("--model", default=None, help="Gemini judge model (default: first of GEMINI_MODELS)")
     ap.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
+    model = args.model or get_settings().gemini_models[0]
     if args.task == "keys":
-        run_keys(args.run, args.model or "deepseek-v4-pro", args.workers)
+        run_keys(args.run, model, args.workers)
     else:
-        run_support(args.run, args.model or "deepseek-flash", args.workers)
+        run_support(args.run, model, args.workers)
     return 0
 
 

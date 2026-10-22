@@ -7,11 +7,9 @@ from functools import cache
 
 from nicegui import app
 
-from pldc.config import INDEX_DIR
-from pldc.embeddings import GeminiEmbedder
 from pldc.llm import AllProvidersFailed, FallbackLLM, build_llm
 from pldc.quiz import QuestionBank
-from pldc.search import Retriever
+from pldc.search import Retriever, build_retriever
 from pldc.store import Store
 
 log = logging.getLogger(__name__)
@@ -34,13 +32,7 @@ def llm() -> FallbackLLM:
 
 @cache
 def retriever() -> Retriever:
-    if not (INDEX_DIR / "manifest.json").exists():
-        raise FileNotFoundError("Chưa có chỉ mục tìm kiếm. Chạy: python src/build_index.py")
-    try:
-        embedder = GeminiEmbedder()
-    except RuntimeError:
-        embedder = None  # no Gemini key: keyword search only
-    return Retriever(embedder)
+    return build_retriever()
 
 
 def user_id() -> str:
