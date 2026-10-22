@@ -8,7 +8,7 @@ from nicegui import run, ui
 import shell
 from pldc.chat import answer
 from services import error_message, llm, retriever, store, user_id
-from sources import SourcePanel, with_cites
+from sources import SourcePanel, answer_markdown, source_for_footnote, source_list
 
 SAMPLE_QUESTIONS = [
     "Nhà nước ra đời từ những tiền đề nào?",
@@ -55,14 +55,9 @@ def build() -> None:
         sources = m.get("sources") or []
         with ui.element("div").classes("qa answer").props(f'data-scope="chat-{idx}"'):
             ui.html('<span class="who">Đáp</span>', sanitize=False).classes("contents")
-            ui.markdown(with_cites(m["content"], len(sources))).classes("body")
+            answer_markdown(m["content"], len(sources)).classes("body")
             if sources:
-                with ui.element("div").classes("sources"):
-                    ui.label("Nguồn trích dẫn")
-                    for i, src in enumerate(sources, start=1):
-                        ui.html(f'<span class="num">{i}</span>{html.escape(src["citation"])}', sanitize=False) \
-                            .props('role="button" tabindex="0"').classes("cursor-pointer") \
-                            .on("click", lambda i=i, src=src: panel.show(i, src))
+                source_list(m["content"], sources, panel)
             ref = f"chat-{idx}"
             rating = db.get_rating(sid, ref)
             question = msgs[idx - 1]["content"] if idx else ""
@@ -137,7 +132,8 @@ def build() -> None:
             live.clear()
             with live, ui.element("div").classes("qa answer"):
                 ui.html('<span class="who">Đáp</span>', sanitize=False).classes("contents")
-                body = ui.markdown("_Đang tra giáo trình…_").classes("body")
+                body = ui.markdown("_Đang tra giáo trình…_", extras=[*ui.markdown.default_extras, "cuddled-lists"]) \
+                    .classes("body")
             scroll_to_end()
             try:
                 res = await run.io_bound(answer, question, history, retriever(), llm())
@@ -170,9 +166,11 @@ def build() -> None:
         if not scope.startswith("chat-"):
             return
         idx = int(scope.split("-")[1])
-        sources = (msgs[idx].get("sources") or []) if idx < len(msgs) else []
-        if 1 <= n <= len(sources):
-            await panel.show(n, sources[n - 1])
+        if idx >= len(msgs):
+            return
+        found = source_for_footnote(msgs[idx]["content"], msgs[idx].get("sources") or [], n)
+        if found:
+            await panel.show(*found)
 
     ui.on("cite", on_cite)
 

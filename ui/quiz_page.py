@@ -8,7 +8,7 @@ from nicegui import run, ui
 from pldc import practice
 from pldc.quiz import BANKS, explain
 from services import bank, error_message, llm, retriever, store, user_id
-from sources import SourcePanel, with_cites
+from sources import SourcePanel, answer_markdown, source_for_footnote, source_list
 import shell
 from theme import CIRCLE_SVG, CROSS_SVG, TICK_SVG
 
@@ -152,16 +152,11 @@ def build(mode: str | None = None) -> None:
         key = practice.explanation_key(qid, chosen)
         exp = s["explanations"][key]
         sources = exp["sources"]
-        view["sources"] = sources
+        view["sources"], view["text"] = sources, exp["text"]
         with ui.element("div").classes("comment"):
             ui.html("<h3>Lời giải</h3>", sanitize=False)
-            ui.markdown(with_cites(exp["text"], len(sources))).classes("body")
-            with ui.element("div").classes("sources"):
-                ui.label("Nguồn trích dẫn")
-                for i, src in enumerate(sources, start=1):
-                    ui.html(f'<span class="num">{i}</span>{html.escape(src["citation"])}', sanitize=False) \
-                        .props('role="button" tabindex="0"').classes("cursor-pointer") \
-                        .on("click", lambda i=i, src=src: panel.show(i, src))
+            answer_markdown(exp["text"], len(sources)).classes("body")
+            source_list(exp["text"], sources, panel)
             rating = db.get_rating(sid, f"explain-{key}")
             with ui.row().classes("items-center gap-1 mt-3 text-sm text-[var(--graphite)]"):
                 ui.label("Lời giải này có giúp bạn hiểu không?")
@@ -178,9 +173,9 @@ def build(mode: str | None = None) -> None:
 
     async def on_cite(e) -> None:
         n = int(e.args["n"])
-        sources = view.get("sources") or []
-        if 1 <= n <= len(sources):
-            await panel.show(n, sources[n - 1])
+        found = source_for_footnote(view.get("text") or "", view.get("sources") or [], n)
+        if found:
+            await panel.show(*found)
 
     ui.on("cite", on_cite)
 

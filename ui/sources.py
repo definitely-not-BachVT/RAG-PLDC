@@ -14,15 +14,59 @@ CITE_RE = re.compile(r"\[(\d{1,2})\]")
 LATEX_ARROWS = {r"$\rightarrow$": "→", r"$\Rightarrow$": "⇒", r"$\leftarrow$": "←", r"$\to$": "→"}
 
 
+def cite_refs(text: str, n_sources: int) -> list[int]:
+    """Source number behind each citation marker, in order of appearance (footnote k -> refs[k-1])."""
+    return [n for n in (int(m) for m in CITE_RE.findall(text)) if 1 <= n <= n_sources]
+
+
 def with_cites(text: str, n_sources: int) -> str:
-    """Turn [n] into clickable superscripts (only for n that exist); tidy stray LaTeX arrows."""
+    """Turn [n] into clickable footnotes numbered 1, 2, 3... by appearance (not by source number,
+    so one source cited five times is not five identical "1"s); tidy stray LaTeX arrows."""
     for latex, char in LATEX_ARROWS.items():
         text = text.replace(latex, char)
+    seen = 0
 
     def sub(m: re.Match) -> str:
-        n = int(m.group(1))
-        return f'<sup class="cite" data-n="{n}">{n}</sup>' if 1 <= n <= n_sources else m.group(0)
+        nonlocal seen
+        if not 1 <= int(m.group(1)) <= n_sources:
+            return m.group(0)
+        seen += 1
+        return f'<sup class="cite" data-n="{seen}">{seen}</sup>'
     return CITE_RE.sub(sub, text)
+
+
+def answer_markdown(text: str, n_sources: int) -> ui.markdown:
+    """Markdown with footnotes. 'cuddled-lists': models write "**Heading:**
+* item" with no blank
+    line, which plain markdown2 leaves as a paragraph with literal asterisks."""
+    return ui.markdown(with_cites(text, n_sources), extras=[*ui.markdown.default_extras, "cuddled-lists"])
+
+
+def source_rows(text: str, sources: list[dict]) -> list[tuple[list[int], int, dict]]:
+    """Cited sources, one row each: (footnote numbers, source number, source) in order of first citation.
+    When the text cites nothing (older answers), all sources are listed as before."""
+    refs = cite_refs(text, len(sources))
+    if not refs:
+        return [([i], i, src) for i, src in enumerate(sources, start=1)]
+    rows: dict[int, list[int]] = {}
+    for k, n in enumerate(refs, start=1):
+        rows.setdefault(n, []).append(k)
+    return [(ks, n, sources[n - 1]) for n, ks in rows.items()]
+
+
+def source_list(text: str, sources: list[dict], panel: "SourcePanel") -> None:
+    """The "Nguồn trích dẫn" list under an answer; each row shows its footnote numbers."""
+    with ui.element("div").classes("sources"):
+        ui.label("Nguồn trích dẫn")
+        for ks, n, src in source_rows(text, sources):
+            label = ", ".join(map(str, ks))
+            ui.html(f'<span class="num">{label}</span>{html.escape(src["citation"])}', sanitize=False)                 .props('role="button" tabindex="0"').classes("cursor-pointer")                 .on("click", lambda n=n, src=src: panel.show(n, src))
+
+
+def source_for_footnote(text: str, sources: list[dict], k: int) -> tuple[int, dict] | None:
+    """(source number, source) behind footnote k, or None."""
+    refs = cite_refs(text, len(sources))
+    return (refs[k - 1], sources[refs[k - 1] - 1]) if 1 <= k <= len(refs) else None
 
 
 class SourcePanel:
