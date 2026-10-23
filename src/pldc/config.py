@@ -29,6 +29,8 @@ class Settings:
     chat_top_k: int  # passages given to the chat model
     llm_timeout: float
     gemini_thinking_budget: int | None  # None: model default; 0: no thinking (flash models)
+    reranker: str  # "auto" (only on a GPU), "on" or "off"
+    rerank_candidates: int  # first-stage hits the reranker re-scores
 
 
 def get_settings() -> Settings:
@@ -45,4 +47,6 @@ def get_settings() -> Settings:
         chat_top_k=int(env("CHAT_TOP_K", "6")),
         llm_timeout=float(env("LLM_TIMEOUT", "30")),
         gemini_thinking_budget=int(b) if (b := env("GEMINI_THINKING_BUDGET", "0").strip()) else None,
+        reranker=env("RERANKER", "auto").strip().lower(),
+        rerank_candidates=int(env("RERANK_CANDIDATES", "20")),
     )

@@ -2,7 +2,7 @@
 
 Two interchangeable embedders with the same `embed()` / `model_id` interface:
   * GeminiEmbedder  - API; free tier allows ~100 texts/minute and ~1000/day.
-  * LocalEmbedder   - BAAI/bge-m3 on CPU via onnxruntime; no quota, no network.
+  * LocalEmbedder   - BAAI/bge-m3 via onnxruntime (GPU through DirectML, else CPU); no quota, no network.
 Pick one with EMBEDDER=gemini|local (see build_embedder); each has its own index directory.
 """
 from __future__ import annotations
@@ -72,8 +72,28 @@ class GeminiEmbedder:
         raise AssertionError("unreachable")
 
 
+def onnx_session(path: Path, threads: int | None = None):
+    """An onnxruntime session on the GPU through DirectML when available (onnxruntime-directml
+    on Windows), else on the CPU. Returns (session, on_gpu)."""
+    import onnxruntime as ort  # imported lazily: only needed for the local models
+
+    opts = ort.SessionOptions()
+    if threads:
+        opts.intra_op_num_threads = threads
+    if "DmlExecutionProvider" in ort.get_available_providers():
+        opts.enable_mem_pattern = False  # both required by the DirectML provider
+        opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        try:
+            session = ort.InferenceSession(str(path), opts,
+                                           providers=["DmlExecutionProvider", "CPUExecutionProvider"])
+            return session, True
+        except Exception as exc:  # noqa: BLE001 - e.g. no usable GPU: the CPU still works
+            log.warning("DirectML unavailable (%s); using the CPU", exc)
+    return ort.InferenceSession(str(path), opts, providers=["CPUExecutionProvider"]), False
+
+
 class LocalEmbedder:
-    """BAAI/bge-m3 dense embeddings (1024-d) on CPU with onnxruntime.
+    """BAAI/bge-m3 dense embeddings (1024-d) with onnxruntime (GPU if available, else CPU).
 
     Uses the ONNX export from the model repo (no pickled weights, no torch). Dense vectors are
     the normalized [CLS] state, as in the reference implementation; queries need no prefix.
@@ -83,8 +103,7 @@ class LocalEmbedder:
     BATCH = 8
 
     def __init__(self, model_dir: Path | None = None, threads: int | None = None):
-        import onnxruntime as ort  # imported lazily: only needed when this embedder is used
-        from tokenizers import Tokenizer
+        from tokenizers import Tokenizer  # imported lazily: only needed when this embedder is used
 
         model_dir = model_dir or ROOT / "models" / "bge-m3" / "onnx"
         if not (model_dir / "model.onnx").exists():
@@ -92,11 +111,7 @@ class LocalEmbedder:
         self.tokenizer = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
         self.tokenizer.enable_truncation(self.MAX_TOKENS)
         self.tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
-        opts = ort.SessionOptions()
-        if threads:
-            opts.intra_op_num_threads = threads
-        self.session = ort.InferenceSession(str(model_dir / "model.onnx"), opts,
-                                            providers=["CPUExecutionProvider"])
+        self.session, self.on_gpu = onnx_session(model_dir / "model.onnx", threads)
         self.input_names = {i.name for i in self.session.get_inputs()}
         self.output_names = [o.name for o in self.session.get_outputs()]
         self.dim = 1024

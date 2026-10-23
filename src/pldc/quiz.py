@@ -47,6 +47,8 @@ class QuestionBank:
                 raw = json.loads(line)
                 fix = overrides.get(raw["id"], {})
                 raw.update({k: fix[k] for k in ("options", "answers") if k in fix})
+                if "answers" in fix:  # a corrected key can turn a single-answer question multi
+                    raw["multi_answer"] = len(fix["answers"]) > 1
                 q = Question(**{k: raw.get(k) for k in Question.__dataclass_fields__})
                 if q.answers:  # questions without a key cannot be graded
                     self.questions.append(q)

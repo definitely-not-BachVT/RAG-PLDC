@@ -89,6 +89,29 @@ def _old_vectors(index_dir: Path, model_id: str) -> dict[tuple[str, str], np.nda
     return {(c["id"], c["text"]): v for c, v in zip(old, vecs)}
 
 
+RESUME_BATCH = 50
+
+
+def _embed_resumable(embedder, chunks: list[Chunk], index_dir: Path) -> dict[tuple[str, str], np.ndarray]:
+    """Embed in batches, saving each batch to a side file, so an interrupted build (daily quota
+    used up, process killed) keeps what it paid for; the next build continues from there."""
+    path = index_dir / "partial_vectors.npz"
+    key = lambda c: hashlib.sha256(f"{embedder.model_id}|{c.id}|{c.text}".encode()).hexdigest()[:24]  # noqa: E731
+    done: dict[str, np.ndarray] = {}
+    if path.exists():
+        with np.load(path) as data:
+            done = {k: data[k] for k in data.files}
+    todo = [c for c in chunks if key(c) not in done]
+    if done and chunks:
+        log.info("resuming: %d of %d already embedded", len(chunks) - len(todo), len(chunks))
+    for i in range(0, len(todo), RESUME_BATCH):
+        batch = todo[i:i + RESUME_BATCH]
+        done.update(zip(map(key, batch), embedder.embed([c.text for c in batch])))
+        index_dir.mkdir(parents=True, exist_ok=True)
+        np.savez(path, **done)
+    return {(c.id, c.text): done[key(c)] for c in chunks}
+
+
 def build_index(embedder, index_dir: Path = INDEX_DIR, force: bool = False) -> str:
     """Embed chunks and save the index. Incremental: unchanged chunks reuse their old vector
     (the free embedding tier allows only ~1000 texts per day).
@@ -103,8 +126,7 @@ def build_index(embedder, index_dir: Path = INDEX_DIR, force: bool = False) -> s
         if old == [c.to_dict() for c in chunks]:
             return "unchanged"
     missing = [c for c in chunks if (c.id, c.text) not in reuse]
-    fresh = dict(zip([(c.id, c.text) for c in missing],
-                     embedder.embed([c.text for c in missing]) if missing else []))
+    fresh = _embed_resumable(embedder, missing, index_dir)
     vecs = np.stack([reuse.get((c.id, c.text), fresh.get((c.id, c.text))) for c in chunks])
     index_dir.mkdir(parents=True, exist_ok=True)
     np.save(index_dir / "embeddings.npy", vecs.astype(np.float32))
@@ -114,11 +136,13 @@ def build_index(embedder, index_dir: Path = INDEX_DIR, force: bool = False) -> s
     manifest_path.write_text(json.dumps({
         "corpus_hash": digest, "embed_model": embedder.model_id, "count": len(chunks),
     }, indent=2), encoding="utf-8")
+    (index_dir / "partial_vectors.npz").unlink(missing_ok=True)
     return f"built ({len(missing)} embedded)"
 
 
 class Retriever:
-    def __init__(self, embedder=None, index_dir: Path = INDEX_DIR):
+    def __init__(self, embedder=None, index_dir: Path = INDEX_DIR, reranker=None,
+                 rerank_candidates: int = 20):
         lines = (index_dir / "chunks.jsonl").read_text(encoding="utf-8").splitlines()
         self.chunks = [Chunk(**json.loads(l)) for l in lines]
         self.vecs = np.load(index_dir / "embeddings.npy")
@@ -127,6 +151,8 @@ class Retriever:
             raise RuntimeError(f"Index built with {manifest['embed_model']}, but embedder is "
                                f"{embedder.model_id}. Run: python src/build_index.py --force")
         self.embedder = embedder
+        self.reranker = reranker
+        self.rerank_candidates = rerank_candidates
         self.bm25 = BM25([tokenize(c.text) for c in self.chunks])
         self.last_mode = "hybrid"
         self._dense_off_until = 0.0
@@ -137,8 +163,12 @@ class Retriever:
 
     def search_with_mode(self, query: str, k: int = 6, min_similarity: float | None = None,
                          margin: float | None = None) -> tuple[list[Hit], str]:
-        """Like search(), also returning the mode actually used ("hybrid" or "bm25");
-        safe to call from several threads (doesn't rely on last_mode).
+        """Like search(), also returning the mode actually used ("hybrid" or "bm25", plus
+        "+rerank" when the reranker re-ordered the hits); safe to call from several threads
+        (doesn't rely on last_mode).
+
+        With a reranker, the best `rerank_candidates` fused hits are re-scored and the top k kept
+        (Hit.score is then the reranker's logit).
 
         Optional gating (hybrid only): drop hits whose cosine to the query is below
         `min_similarity`, or more than `margin` below the best hit. May return fewer than k."""
@@ -159,8 +189,17 @@ class Retriever:
         for ranking in rankings:
             for rank, idx in enumerate(ranking):
                 fused[int(idx)] = fused.get(int(idx), 0.0) + 1.0 / (RRF_K + rank + 1)
-        best = sorted(fused.items(), key=lambda kv: -kv[1])[:k]
-        hits = [Hit(self.chunks[i], s, float(sims[i]) if sims is not None else None) for i, s in best]
+        best = sorted(fused.items(), key=lambda kv: -kv[1])
+        if self.reranker is not None:
+            pool = [i for i, _ in best[:max(k, self.rerank_candidates)]]
+            try:
+                scores = self.reranker.scores(query, [self.chunks[i].text for i in pool])
+                best = sorted(zip(pool, map(float, scores)), key=lambda kv: -kv[1])
+                mode += "+rerank"
+            except Exception as exc:  # noqa: BLE001 - keep the first-stage order
+                log.warning("rerank failed, using fused order: %s", exc)
+        hits = [Hit(self.chunks[i], s, float(sims[i]) if sims is not None else None)
+                for i, s in best[:k]]
         if sims is not None and hits and (min_similarity is not None or margin is not None):
             top = max(h.similarity for h in hits)
             hits = [h for h in hits
@@ -170,19 +209,23 @@ class Retriever:
 
 
 def build_retriever() -> Retriever:
-    """The app's retriever: hybrid with the configured embedder (EMBEDDER=gemini|local).
+    """The app's retriever: hybrid with the configured embedder (EMBEDDER=gemini|local), then the
+    reranker when one is configured (RERANKER, see pldc.rerank.build_reranker).
 
     Falls back to the Gemini index if the local model/index is missing, and to keywords only if
     there is no Gemini key.
     """
     from .config import get_settings, index_dir_for  # local imports: keep module import light
     from .embeddings import GeminiEmbedder, LocalEmbedder
+    from .rerank import build_reranker
 
-    if get_settings().embedder == "local":
+    s = get_settings()
+    rerank = {"reranker": build_reranker(s), "rerank_candidates": s.rerank_candidates}
+    if s.embedder == "local":
         try:
             local = LocalEmbedder()
             if (index_dir_for(local.model_id) / "manifest.json").exists():
-                return Retriever(local, index_dir=index_dir_for(local.model_id))
+                return Retriever(local, index_dir=index_dir_for(local.model_id), **rerank)
             log.warning("bge-m3 index missing; run: python src/build_index.py --embedder local")
         except RuntimeError as exc:
             log.warning("local embedder unavailable (%s); using Gemini", exc)
@@ -192,4 +235,4 @@ def build_retriever() -> Retriever:
         embedder = GeminiEmbedder()
     except RuntimeError:
         embedder = None  # no Gemini key: keyword search only
-    return Retriever(embedder)
+    return Retriever(embedder, **rerank)

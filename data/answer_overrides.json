@@ -1,15 +1,384 @@
 {
-  "_comment": "Manual fixes applied by pldc.quiz.QuestionBank, keyed by question id. Each entry may replace 'answers' and/or 'options'. Verified against the rendered PDF page.",
+  "_comment": "Manual fixes applied by pldc.quiz.QuestionBank, keyed by question id. Each entry may replace 'answers' and/or 'options'. Entries with 'source' were checked against legal texts / legal-theory sources (2026-10-23); 'confidence' is cao|trung_binh|thap.",
   "questions": {
     "nganhang_tn-1.3.16": {
       "note": "PDF p.3: option D (red, correct) is printed overlapping option B, so the parser reads 3 options and key B.",
       "options": [
-        {"label": "A", "text": "Do ý chí của giai cấp thống trị xã hội"},
-        {"label": "B", "text": "Do sự phát triển tự nhiên của xã hội"},
-        {"label": "C", "text": "Do mâu thuẫn giữa lực lượng sản xuất và quan hệ sản xuất trong xã hội"},
-        {"label": "D", "text": "Do sự vận động, phát triển, thay thế các hình thái kinh tế - xã hội mà nhân tố làm nên sự thay thế đó là các cuộc cách mạng xã hội"}
+        {
+          "label": "A",
+          "text": "Do ý chí của giai cấp thống trị xã hội"
+        },
+        {
+          "label": "B",
+          "text": "Do sự phát triển tự nhiên của xã hội"
+        },
+        {
+          "label": "C",
+          "text": "Do mâu thuẫn giữa lực lượng sản xuất và quan hệ sản xuất trong xã hội"
+        },
+        {
+          "label": "D",
+          "text": "Do sự vận động, phát triển, thay thế các hình thái kinh tế - xã hội mà nhân tố làm nên sự thay thế đó là các cuộc cách mạng xã hội"
+        }
       ],
-      "answers": ["D"]
+      "answers": [
+        "D"
+      ]
+    },
+    "eduquiz-029": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc B. Nguồn lý luận: bản chất pháp luật gồm tính giai cấp và tính xã hội.",
+      "source": "https://hoatieu.vn/ban-chat-giai-cap-va-ban-chat-xa-hoi-cua-phap-luat-210554"
+    },
+    "eduquiz-099": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Nguồn lý luận: định nghĩa pháp luật (bắt buộc chung - nhà nước - ý chí - điều kiện kinh tế xã hội).",
+      "source": "https://hocluat.vn/wiki/phap-luat/page/2"
+    },
+    "eduquiz-132": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc A. Điều 21 Luật XLVPHC 2012: cảnh cáo, phạt tiền là hình thức xử phạt; 'giam xe' không phải hình thức trách nhiệm pháp lý.",
+      "source": "https://hethongphapluat.com/luat-xu-ly-vi-pham-hanh-chinh-2012/dieu-21"
+    },
+    "eduquiz-202": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Hình thức thể hiện của pháp luật là văn bản có chứa quy phạm pháp luật.",
+      "source": "https://luatvietnam.vn/hanh-chinh/van-ban-quy-pham-phat-luat-la-gi-570-89564-article.html"
+    },
+    "eduquiz-215": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc C. Vi phạm dân sự xâm phạm quan hệ tài sản và quan hệ nhân thân.",
+      "source": "https://lsvn.vn/the-nao-la-vi-pham-dan-su1661480032-a123050.html"
+    },
+    "eduquiz-280": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc D. Điều 195 BLDS 2015: người không phải chủ sở hữu chỉ có quyền định đoạt theo ủy quyền.",
+      "source": "https://hethongphapluat.com/bo-luat-dan-su-2015/dieu-195"
+    },
+    "eduquiz-362": {
+      "answers": [
+        "C"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. GDCD 12 Bài 9: nghĩa vụ nộp thuế là rất quan trọng.",
+      "source": "https://vietjack.com/giai-bai-tap-giao-duc-cong-dan-12/gdcd-12-bai-9-phap-luat-voi-su-phat-trien-ben-vung-cua-dat-nuoc.jsp"
+    },
+    "eduquiz-427": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc A. Điều 123-124 BLLĐ 1994 (BLLĐ 2019 đã thay đổi).",
+      "source": "https://dulieuphapluat.vn/van-ban/lao-dong-van-ban/bo-luat-lao-dong-1994-655528.html"
+    },
+    "nganhang_tn-2.1.3": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc D. Nguồn lý luận: tính xã hội không phải đặc điểm phân biệt pháp luật với quy phạm xã hội khác.",
+      "source": "https://hoatieu.vn/phap-luat/dac-diem-cua-phap-luat-214486"
+    },
+    "nganhang_tn-8.2.22": {
+      "answers": [
+        "C"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc D. Điều 77 Luật HN&GĐ 2014: quyền về tài sản của con không phải quyền nhân thân; chỉ C là quyền nhân thân.",
+      "source": "https://lsvn.vn/quyen-co-tai-san-rieng-cua-con-quy-dinh-phap-luat-ve-quan-ly-dinh-doat-tai-san-rieng-cua-con1642100049-a114178.html"
+    },
+    "nganhang_tn-9.2.8": {
+      "answers": [
+        "A",
+        "D"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc D. Điều 2 Luật PCTN 2018 liệt kê cả A và D là hành vi tham nhũng.",
+      "source": "https://tapchitoaan.vn/index.php/hanh-vi-tham-nhung-trong-luat-phong-chong-tham-nhung-nam-2018"
+    },
+    "eduquiz-030": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Nguồn lý luận: pháp luật bắt nguồn từ thực tiễn đời sống xã hội.",
+      "source": "https://hoatieu.vn/ban-chat-giai-cap-va-ban-chat-xa-hoi-cua-phap-luat-210554"
+    },
+    "eduquiz-100": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc D. GDCD 12 Bài 9: tác động lên các lĩnh vực của đời sống xã hội.",
+      "source": "https://vietjack.com/giai-bai-tap-giao-duc-cong-dan-12/gdcd-12-bai-9-phap-luat-voi-su-phat-trien-ben-vung-cua-dat-nuoc.jsp"
+    },
+    "eduquiz-153": {
+      "answers": [
+        "C"
+      ],
+      "confidence": "thap",
+      "note": "Đáp án gốc D. Không tìm được nguồn; theo lý luận luật lao động, quyền lao động thực hiện khi xác lập quan hệ lao động.",
+      "source": ""
+    },
+    "eduquiz-203": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc C. Khoản 1 Điều 8 BLHS 2015: hành vi nguy hiểm cho xã hội được quy định trong BLHS.",
+      "source": "https://lsvn.vn/the-nao-la-vi-pham-hinh-su1660845316-a122717.html"
+    },
+    "eduquiz-220": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc B. Đảng lãnh đạo bằng đường lối, công tác cán bộ và tổ chức đảng trong cơ quan nhà nước.",
+      "source": "https://www.quanlynhanuoc.vn/?p=23817"
+    },
+    "eduquiz-293": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Điều 609, 610 BLDS 2015 (tài liệu hỏi đáp của Phòng Tư pháp huyện Giao Thủy).",
+      "source": "https://storage-vnportal.vnpt.vn/ndh-ubnd/4523/tuphap/"
+    },
+    "eduquiz-366": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc C. Điểm a khoản 2 Điều 4 Pháp lệnh Dân số 2003.",
+      "source": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2025/9/152-vbhn-vpqh.pdf"
+    },
+    "nganhang_tn-6.3.24": {
+      "answers": [
+        "A",
+        "B",
+        "D"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc D. Điều 609, 651 BLDS 2015: A, B, D là khẳng định sai.",
+      "source": "https://lsvn.vn/thua-ke-tai-san-khi-khong-co-di-chuc-nhung-bat-cap-va-kien-nghi-a88266.html"
+    },
+    "nganhang_tn-8.3.23": {
+      "answers": [
+        "C"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc D. Điều 56 Luật HN&GĐ 2014: H có quyền đơn phương ly hôn và yêu cầu cấp dưỡng.",
+      "source": "https://accgroup.vn/dieu-56-luat-hon-nhan-va-gia-dinh-nam-2014"
+    },
+    "eduquiz-107": {
+      "answers": [
+        "C"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc D. Nguồn lý luận: chủ thể vi phạm pháp luật phải có năng lực trách nhiệm pháp lý.",
+      "source": "https://lsvn.vn/the-nao-la-vi-pham-phap-luat1660707342-a122625.html"
+    },
+    "nganhang_tn-2.4.47": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "thap",
+      "note": "Đáp án gốc A. Theo lý luận chung, mọi chủ thể quan hệ pháp luật đều mang quyền và nghĩa vụ (D).",
+      "source": ""
+    },
+    "eduquiz-103": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Nguồn lý luận: 4 kiểu pháp luật (chủ nô, phong kiến, tư sản, XHCN).",
+      "source": ""
+    },
+    "eduquiz-162": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc C. Nguồn lý luận Mác-Lênin: nhà nước là sản phẩm của mâu thuẫn giai cấp không thể điều hòa.",
+      "source": ""
+    },
+    "eduquiz-204": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc B. Điều 8 Luật Ban hành VBQPPL 2015: ngôn ngữ chính xác, rõ ràng.",
+      "source": "https://hethongphapluat.com/luat-ban-hanh-van-ban-quy-pham-phap-luat-2015/dieu-8"
+    },
+    "eduquiz-272": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc B,C. Khoản 1 Điều 35 Luật HN&GĐ 2014: do vợ chồng thỏa thuận.",
+      "source": "https://hethongphapluat.com/luat-hon-nhan-va-gia-dinh-2014/dieu-35"
+    },
+    "eduquiz-339": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc C. Nguồn lý luận: xử lý vi phạm thể hiện tính quyền lực, bắt buộc chung; chỉ H đúng.",
+      "source": "https://vietjack.com/giai-bai-tap-giao-duc-cong-dan-12/gdcd-12-bai-1-phap-luat-va-doi-song.jsp"
+    },
+    "eduquiz-393": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc D. Năng lực TNPL theo độ tuổi và khả năng nhận thức, điều khiển hành vi (Điều 12, 21 BLHS).",
+      "source": ""
+    },
+    "nganhang_tn-1.2.12": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc C. Nguồn lý luận: liên bang có hai hệ thống cơ quan, hai hệ thống pháp luật, hai quốc tịch; B đầy đủ nhất.",
+      "source": "https://luatduonggia.vn/phap-luat/nha-nuoc-lien-bang-la-gi-so-sanh-nha-nuoc-don-nhat-voi-nha-nuoc-lien-bang/"
+    },
+    "nganhang_tn-2.3.36": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc B. Khoản 1 Điều 41 Luật Thương mại 2005: giả định gồm toàn bộ điều kiện trước chữ 'thì'.",
+      "source": "https://hethongphapluat.com/luat-thuong-mai-2005/dieu-41"
+    },
+    "nganhang_tn-7.1.8": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc B. Điều 32 BLHS 2015: phạt tiền và trục xuất vừa là hình phạt chính vừa là bổ sung.",
+      "source": "https://hethongphapluat.com/bo-luat-hinh-su-2015/dieu-32"
+    },
+    "nganhang_tn-8.4.29": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc C. Điều 81 Luật HN&GĐ 2014: chỉ áp dụng cho con chưa thành niên hoặc không tự nuôi được mình.",
+      "source": "https://hethongphapluat.com/luat-hon-nhan-va-gia-dinh-2014/dieu-81"
+    },
+    "eduquiz-197": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "thap",
+      "note": "Đáp án gốc B. Chưa xác nhận được; theo Mác-Lênin A hợp lý nhất.",
+      "source": ""
+    },
+    "eduquiz-087": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc A. Nguồn lý luận: các quy tắc được làm/phải làm/không được làm là nội dung của pháp luật.",
+      "source": "https://minio.ftech.ai/fs-landing/1_87b66cf2d5.pdf"
+    },
+    "eduquiz-126": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc C. Nguồn lý luận: pháp luật là công cụ bảo vệ lợi ích giai cấp thống trị (câu có độ mơ hồ).",
+      "source": "https://law.huit.edu.vn/app_web/Images/Documents/N00CT/chuong_1_nhung-van-de-co-ban-ve-nha-nuoc_phap-luat.pdf"
+    },
+    "eduquiz-163": {
+      "answers": [
+        "D"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc C. Nguồn lý luận: A, B, C đều thể hiện tính giai cấp.",
+      "source": "https://law.huit.edu.vn/app_web/Images/Documents/N00CT/chuong_1_nhung-van-de-co-ban-ve-nha-nuoc_phap-luat.pdf"
+    },
+    "eduquiz-205": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Điều 132 BLHS 2015: tội không cứu giúp người đang ở trong tình trạng nguy hiểm đến tính mạng.",
+      "source": "https://luatminhkhue.vn/khong-cuu-giup-nguoi-dang-gap-nguy-hiem-den-tinh-mang.aspx"
+    },
+    "eduquiz-278": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc C. Điều 180-181 BLDS 2015: biết hoặc phải biết là chiếm hữu không ngay tình.",
+      "source": "https://hethongphapluat.com/bo-luat-dan-su-2015/dieu-181"
+    },
+    "eduquiz-353": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Điều 33 Hiến pháp 2013: tự do kinh doanh trong những ngành nghề pháp luật không cấm.",
+      "source": "https://hethongphapluat.com/hien-phap-2013/dieu-33"
+    },
+    "eduquiz-411": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc A. Đội mũ bảo hiểm là nghĩa vụ phải làm → vi phạm thi hành pháp luật.",
+      "source": "https://vietjack.com/giai-bai-tap-giao-duc-cong-dan-12/gdcd-12-bai-2-thuc-hien-phap-luat.jsp"
+    },
+    "nganhang_tn-1.3.14": {
+      "answers": [
+        "C"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc B. Nhà Nguyễn 1802-1945: quân chủ tuyệt đối (chuyên chế).",
+      "source": "https://en.wikipedia.org/wiki/Government_of_the_Nguy%E1%BB%85n_dynasty"
+    },
+    "nganhang_tn-5.1.10": {
+      "answers": [
+        "C"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc A. Khoản 2 Điều 38 Luật XLVPHC 2012 (bản gốc): tối đa 50.000.000 đồng; bản sửa đổi 2020 nâng lên 100 triệu.",
+      "source": "https://hethongphapluat.com/luat-xu-ly-vi-pham-hanh-chinh-2012/dieu-38"
+    },
+    "nganhang_tn-8.2.19": {
+      "answers": [
+        "B"
+      ],
+      "confidence": "trung_binh",
+      "note": "Đáp án gốc D. Điều 14 Luật HN&GĐ 2014: chung sống không đăng ký không làm phát sinh quyền, nghĩa vụ vợ chồng.",
+      "source": "https://hethongphapluat.com/luat-hon-nhan-va-gia-dinh-2014/dieu-14"
+    },
+    "nganhang_tn-9.1.5": {
+      "answers": [
+        "A"
+      ],
+      "confidence": "cao",
+      "note": "Đáp án gốc C. Điều 353 BLHS 2015: tội tham ô tài sản.",
+      "source": "https://hethongphapluat.com/bo-luat-hinh-su-2015/dieu-353"
     }
   }
 }

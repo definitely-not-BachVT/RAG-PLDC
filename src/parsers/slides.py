@@ -45,10 +45,17 @@ def parse(pdf: Path) -> list[Slide]:
     frequent = {ln for ln, n in freq.items() if n > FREQUENT_SHARE * len(pages)}
 
     slides = []
+    chapter = 1
     for no, lines in enumerate(pages, start=1):
         is_cover = any(ln.startswith("HỌC VIỆN CÔNG NGHỆ") for ln in lines)
         body = [ln for ln in lines if ln not in frequent and not TEMPLATE_RE.match(ln)]
-        if not body or is_cover:
+        if is_cover:
+            continue
+        if not body:
+            # Chapter divider: its title is an image, so only template text is left. The deck's
+            # 8 dividers split it into the textbook's 9 chapters, in order.
+            if slides:
+                chapter += 1
             continue
         # Titles wrap inside their text box: "Tiền đề ra đời của" / "nhà nước".
         title, i = body[0], 1
@@ -57,6 +64,6 @@ def parse(pdf: Path) -> list[Slide]:
             i += 1
         slides.append(Slide(
             id=f"{SOURCE}-{no:03d}", source=SOURCE, source_file=pdf.name, slide=no,
-            chapter=None, title=clean_inline(title), text=_join_wrapped(body),
+            chapter=chapter, title=clean_inline(title), text=_join_wrapped(body),
         ))
     return slides

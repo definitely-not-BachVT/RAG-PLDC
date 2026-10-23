@@ -42,3 +42,4 @@ desktop.ini
 data/eval/
 models/
 data/index-bge-m3/
+data/index/partial_vectors.npz
