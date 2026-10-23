@@ -28,6 +28,7 @@ class Settings:
     embedder: str  # "gemini" or "local" (bge-m3 on CPU)
     chat_top_k: int  # passages given to the chat model
     llm_timeout: float
+    gemini_thinking_budget: int | None  # None: model default; 0: no thinking (flash models)
 
 
 def get_settings() -> Settings:
@@ -36,11 +37,12 @@ def get_settings() -> Settings:
     return Settings(
         google_api_key=env("GOOGLE_API_KEY", "").strip(),
         gemini_models=[m.strip() for m in env(
-            "GEMINI_MODELS", "gemini-flash-latest,gemini-3.8-flash,gemini-flash-lite-latest").split(",")
+            "GEMINI_MODELS", "gemini-flash-lite-latest,gemini-3.8-flash,gemini-flash-latest").split(",")
             if m.strip()],
         gemini_embed_model=env("GEMINI_EMBED_MODEL", "gemini-embedding-001"),
         embed_dim=int(env("EMBED_DIM", "768")),
         embedder=env("EMBEDDER", "gemini").strip().lower(),
         chat_top_k=int(env("CHAT_TOP_K", "6")),
         llm_timeout=float(env("LLM_TIMEOUT", "30")),
+        gemini_thinking_budget=int(b) if (b := env("GEMINI_THINKING_BUDGET", "0").strip()) else None,
     )

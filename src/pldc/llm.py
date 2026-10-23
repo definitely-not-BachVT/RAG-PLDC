@@ -35,7 +35,11 @@ class Provider(Protocol):
 class GeminiProvider:
     _FALLBACK_STATUS = {401, 403, 404, 408, 429}
 
-    def __init__(self, api_key: str, model: str, timeout: float):
+    def __init__(self, api_key: str, model: str, timeout: float, thinking_budget: int | None = None):
+        # Flash models "think" by default: ~55 s before the first token on a RAG prompt, which
+        # blows the timeout. A budget of 0 turns it off. Lite models reject the setting (400).
+        self.thinking = (genai_types.ThinkingConfig(thinking_budget=thinking_budget)
+                         if thinking_budget is not None and "lite" not in model else None)
         self.client = genai.Client(
             api_key=api_key, http_options=genai_types.HttpOptions(timeout=int(timeout * 1000)))
         self.model = model
@@ -49,7 +53,8 @@ class GeminiProvider:
             for m in messages if m["role"] != "system"
         ]
         config = genai_types.GenerateContentConfig(
-            system_instruction=system or None, temperature=temperature)
+            system_instruction=system or None, temperature=temperature,
+            thinking_config=self.thinking)
         for chunk in self.client.models.generate_content_stream(
                 model=self.model, contents=contents, config=config):
             if chunk.text:
@@ -109,5 +114,6 @@ def build_llm(settings: Settings | None = None) -> FallbackLLM:
     providers: list[Provider] = []
     if s.google_api_key:
         # Several Gemini models: one is often overloaded (503) while another still answers.
-        providers += [GeminiProvider(s.google_api_key, m, s.llm_timeout) for m in s.gemini_models]
+        providers += [GeminiProvider(s.google_api_key, m, s.llm_timeout, s.gemini_thinking_budget)
+                      for m in s.gemini_models]
     return FallbackLLM(providers)
