@@ -24,7 +24,8 @@ from .prompts import format_context
 from .quiz import Question, QuestionBank
 from .search import Retriever
 
-MODES = ("none", "bm25", "hybrid", "hybrid_v2", "hybrid_v2_k3", "hybrid_v2_gate", "local", "local_v2", "local_v2_k3")
+MODES = ("none", "bm25", "hybrid", "hybrid_v2", "hybrid_v2_k3", "hybrid_v2_gate", "local", "local_v2", "local_v2_k3",
+         "local_v2_rerank")
 # mode -> (retriever, k, prompt version, gating kwargs)
 VARIANTS = {
     "bm25": ("bm25", 6, 1, {}),
@@ -35,6 +36,7 @@ VARIANTS = {
     "local": ("local", 6, 1, {}),  # BM25 + bge-m3 (on CPU) instead of Gemini embeddings
     "local_v2": ("local", 6, 2, {}),
     "local_v2_k3": ("local", 3, 2, {}),
+    "local_v2_rerank": ("local_rerank", 6, 2, {}),  # + bge-reranker-v2-m3 over the top 20
 }
 
 SYSTEM = ("Bạn làm bài trắc nghiệm môn Pháp luật đại cương (Việt Nam). "
@@ -163,6 +165,43 @@ def summarize(rows: list[Row]) -> dict:
 
 def row_dict(r: Row) -> dict:
     return asdict(r)
+
+
+class ThrottledProvider:
+    """Wraps a chat provider for evaluation runs: at most `per_minute` requests start per minute,
+    and a rate-limit error (429) waits and retries instead of becoming a failed row (the free
+    Gemini tier allows ~15 requests per minute)."""
+
+    def __init__(self, inner, per_minute: int, attempts: int = 6):
+        self.inner, self.attempts = inner, attempts
+        self.name, self.model = inner.name, getattr(inner, "model", None)
+        self.interval = 60.0 / per_minute
+        self._lock = threading.Lock()
+        self._next = 0.0
+
+    def _wait_turn(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            start = max(now, self._next)
+            self._next = start + self.interval
+        time.sleep(max(0.0, start - now))
+
+    exhausted = False  # the daily quota ran out: fail fast, a resumed run redoes these rows
+
+    def stream(self, messages, temperature):
+        for attempt in range(self.attempts):
+            if self.exhausted:
+                raise RuntimeError("daily quota exhausted")
+            self._wait_turn()
+            try:
+                return iter(list(self.inner.stream(messages, temperature)))
+            except Exception as exc:  # noqa: BLE001 - only rate limits are retried
+                if "PerDay" in str(exc):
+                    self.exhausted = True
+                if "429" not in str(exc) or self.exhausted or attempt == self.attempts - 1:
+                    raise
+                time.sleep(20 * (attempt + 1))
+        raise AssertionError("unreachable")
 
 
 class ThrottledCachedEmbedder:

@@ -18,10 +18,11 @@ from pathlib import Path
 
 from pldc.config import DATA_DIR, get_settings, index_dir_for
 from pldc.embeddings import GeminiEmbedder, LocalEmbedder
-from pldc.evaluation import (MODES, VARIANTS, Row, ThrottledCachedEmbedder, row_dict, run_one, sample,
-                             summarize)
+from pldc.evaluation import (MODES, VARIANTS, Row, ThrottledCachedEmbedder, ThrottledProvider, row_dict,
+                             run_one, sample, summarize)
 from pldc.llm import GeminiProvider
 from pldc.quiz import QuestionBank
+from pldc.rerank import Reranker
 from pldc.search import Retriever
 
 
@@ -43,7 +44,10 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--run-dir", type=Path, default=None,
-                    help="add/replace these modes in an existing run (rows of other modes are kept)")
+                    help="add/replace these modes in an existing run (rows of other modes are kept); "
+                         "an interrupted run continues where it stopped")
+    ap.add_argument("--rpm", type=int, default=None,
+                    help="at most this many LLM requests per minute, retrying 429s (free tier: 14)")
     args = ap.parse_args()
 
     modes = [m for m in args.modes.split(",") if m]
@@ -51,6 +55,8 @@ def main() -> int:
         sys.exit(f"unknown modes: {bad}")
     questions = sample(QuestionBank(), args.limit, args.seed, args.source)
     provider = make_provider(args.model)
+    if args.rpm:
+        provider = ThrottledProvider(provider, args.rpm)
     retrievers = {}
     kinds = {VARIANTS[m][0] for m in modes if m != "none"}
     if "bm25" in kinds:
@@ -60,9 +66,13 @@ def main() -> int:
         # Free tier: ~100 embeddings/minute. Throttle + cache, or hybrid silently degrades to BM25.
         embedder = ThrottledCachedEmbedder(GeminiEmbedder(), DATA_DIR / "eval" / "query_vectors.npz")
         retrievers["hybrid"] = Retriever(embedder)
-    if "local" in kinds:
+    if kinds & {"local", "local_rerank"}:
         local = LocalEmbedder()
         retrievers["local"] = Retriever(local, index_dir=index_dir_for(local.model_id))
+        if "local_rerank" in kinds:
+            retrievers["local_rerank"] = Retriever(local, index_dir=index_dir_for(local.model_id),
+                                                   reranker=Reranker(),
+                                                   rerank_candidates=get_settings().rerank_candidates)
 
     out_dir = args.run_dir or DATA_DIR / "eval" / time.strftime("%Y%m%d-%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -72,20 +82,35 @@ def main() -> int:
             r = Row(**json.loads(line))
             if r.mode not in modes:
                 kept.append(r)
-    jobs = [(q, m) for m in modes for q in questions]
+    # Rows are appended as they finish, so an interrupted run (sleep, crash, daily quota) can
+    # continue: rows already answered without error are not asked again.
+    partial = out_dir / "rows.partial.jsonl"
+    done: dict[tuple[str, str], Row] = {}
+    if partial.exists():
+        for line in partial.read_text(encoding="utf-8").splitlines():
+            r = Row(**json.loads(line))
+            if not r.error:
+                done[(r.qid, r.mode)] = r
+    jobs = [(q, m) for m in modes for q in questions if (q.id, m) not in done]
+    if done:
+        print(f"resuming: {len(done)} rows already done", flush=True)
     print(f"{len(questions)} questions x {len(modes)} modes = {len(jobs)} calls with {provider.name}"
           f" ({getattr(provider, 'model', '')}) -> {out_dir}", flush=True)
 
-    rows: list[Row] = []
+    rows: list[Row] = list(done.values())
     t0 = time.time()
-    with ThreadPoolExecutor(args.workers) as pool:
+    with ThreadPoolExecutor(args.workers) as pool, partial.open("a", encoding="utf-8") as part:
         futures = [pool.submit(run_one, q, m, provider, retrievers) for q, m in jobs]
         for i, fut in enumerate(as_completed(futures), start=1):
             rows.append(fut.result())
+            part.write(json.dumps(row_dict(rows[-1]), ensure_ascii=False) + "\n")
+            part.flush()
             if i % 25 == 0 or i == len(jobs):
                 print(f"  {i}/{len(jobs)} done ({time.time() - t0:.0f}s)", flush=True)
                 if embedder:
                     embedder.save()
+    if getattr(provider, "exhausted", False):
+        print(f"! hết hạn mức trong ngày: chạy lại cùng lệnh với --run-dir {out_dir} để làm tiếp", flush=True)
     rows = kept + rows
     with (out_dir / "rows.jsonl").open("w", encoding="utf-8") as f:
         for row in rows:

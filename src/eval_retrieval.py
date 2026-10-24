@@ -74,6 +74,8 @@ def main() -> int:
     ap.add_argument("--judge", default=None, help="Gemini model (default: first of GEMINI_MODELS)")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--out", type=Path, default=None, help="write the summary JSON here")
+    ap.add_argument("--rows", type=Path, default=None,
+                    help="write per-question labels (JSONL) here, for paired comparisons")
     args = ap.parse_args()
 
     indexes = [(spec.split("=", 1)[0], Path(spec.split("=", 1)[1])) for spec in args.index]
@@ -129,6 +131,14 @@ def main() -> int:
         list(pool.map(work, pending))
 
     # 3. Metrics. Questions with a passage left unlabeled (judge failed) are skipped.
+    if args.rows:
+        with args.rows.open("w", encoding="utf-8") as f:
+            for name, res in results.items():
+                for q in questions:
+                    keys = [label_key(q, h.chunk.body) for h in res[q.id]]
+                    if all(k in labels for k in keys):
+                        f.write(json.dumps({"setup": name, "qid": q.id,
+                                            "relevant": [labels[k] for k in keys]}) + "\n")
     summary = {}
     for name, res in results.items():
         hit, hit3, mrr, prec, chars, n = 0, 0, 0.0, 0.0, 0, 0

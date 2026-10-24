@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from .config import ROOT, Settings, get_settings
-from .embeddings import onnx_session
+from .embeddings import GPU_LOCK, onnx_session
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +40,8 @@ class Reranker:
         self.tokenizer.enable_truncation(self.MAX_TOKENS)
         self.tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
         self.input_names = {i.name for i in self.session.get_inputs()}
-        self._lock = threading.Lock()  # one batch at a time (eval calls from many threads)
+        # one batch at a time (eval calls from many threads); on the GPU, one model at a time
+        self._lock = GPU_LOCK if self.on_gpu else threading.Lock()
 
     @property
     def model_id(self) -> str:

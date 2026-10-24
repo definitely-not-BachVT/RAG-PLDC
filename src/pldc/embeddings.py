@@ -72,6 +72,11 @@ class GeminiEmbedder:
         raise AssertionError("unreachable")
 
 
+# DirectML sessions must not run at the same time, even different models: two concurrent runs
+# fail with "Catastrophic failure" or crash the process. Every GPU run takes this lock.
+GPU_LOCK = threading.Lock()
+
+
 def onnx_session(path: Path, threads: int | None = None):
     """An onnxruntime session on the GPU through DirectML when available (onnxruntime-directml
     on Windows), else on the CPU. Returns (session, on_gpu)."""
@@ -115,7 +120,8 @@ class LocalEmbedder:
         self.input_names = {i.name for i in self.session.get_inputs()}
         self.output_names = [o.name for o in self.session.get_outputs()]
         self.dim = 1024
-        self._lock = threading.Lock()  # one batch at a time (eval calls from many threads)
+        # one batch at a time (eval calls from many threads); on the GPU, one model at a time
+        self._lock = GPU_LOCK if self.on_gpu else threading.Lock()
 
     @property
     def model_id(self) -> str:
