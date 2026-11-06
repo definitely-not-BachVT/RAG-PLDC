@@ -1,6 +1,6 @@
-"""Chat LLM with provider fallback: DeepSeek first, Gemini when DeepSeek is unavailable.
+"""Chat LLM with provider fallback across the configured Gemini models.
 
-Fallback (DeepSeek, then each configured Gemini model in turn) happens on "provider is unavailable" errors (missing key, auth, out of balance,
+Fallback (each configured Gemini model in turn) happens on "provider is unavailable" errors (auth,
 rate limit, server errors, timeouts, connection errors). Errors caused by our own
 request (bad request) are raised so they are not hidden by switching providers.
 When streaming, we only fall back before the first token arrives.
@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass
 from typing import Iterator, Protocol
 
-import openai
+import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
@@ -32,37 +32,14 @@ class Provider(Protocol):
     def should_fall_back(self, exc: Exception) -> bool: ...
 
 
-class DeepSeekProvider:
-    """DeepSeek via its OpenAI-compatible API."""
-
-    name = "DeepSeek"
-    _FALLBACK_STATUS = {401, 402, 403, 404, 408, 409, 429}
-
-    def __init__(self, api_key: str, model: str, base_url: str, timeout: float):
-        # The SDK default (10 min timeout, 2 retries) would make fallback hang for minutes.
-        self.client = openai.OpenAI(api_key=api_key, base_url=base_url,
-                                    timeout=timeout, max_retries=0)
-        self.model = model
-
-    def stream(self, messages: list[Message], temperature: float) -> Iterator[str]:
-        resp = self.client.chat.completions.create(
-            model=self.model, messages=messages, temperature=temperature, stream=True)
-        for chunk in resp:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
-
-    def should_fall_back(self, exc: Exception) -> bool:
-        if isinstance(exc, (openai.APIConnectionError, openai.APITimeoutError)):
-            return True
-        if isinstance(exc, openai.APIStatusError):
-            return exc.status_code in self._FALLBACK_STATUS or exc.status_code >= 500
-        return False
-
-
 class GeminiProvider:
     _FALLBACK_STATUS = {401, 403, 404, 408, 429}
 
-    def __init__(self, api_key: str, model: str, timeout: float):
+    def __init__(self, api_key: str, model: str, timeout: float, thinking_budget: int | None = None):
+        # Flash models "think" by default: ~55 s before the first token on a RAG prompt, which
+        # blows the timeout. A budget of 0 turns it off. Lite models reject the setting (400).
+        self.thinking = (genai_types.ThinkingConfig(thinking_budget=thinking_budget)
+                         if thinking_budget is not None and "lite" not in model else None)
         self.client = genai.Client(
             api_key=api_key, http_options=genai_types.HttpOptions(timeout=int(timeout * 1000)))
         self.model = model
@@ -76,7 +53,8 @@ class GeminiProvider:
             for m in messages if m["role"] != "system"
         ]
         config = genai_types.GenerateContentConfig(
-            system_instruction=system or None, temperature=temperature)
+            system_instruction=system or None, temperature=temperature,
+            thinking_config=self.thinking)
         for chunk in self.client.models.generate_content_stream(
                 model=self.model, contents=contents, config=config):
             if chunk.text:
@@ -85,7 +63,8 @@ class GeminiProvider:
     def should_fall_back(self, exc: Exception) -> bool:
         if isinstance(exc, genai_errors.APIError):
             return exc.code in self._FALLBACK_STATUS or (exc.code or 0) >= 500
-        return isinstance(exc, (TimeoutError, ConnectionError))
+        # The google-genai SDK surfaces network failures as raw httpx errors (e.g. ReadTimeout).
+        return isinstance(exc, (TimeoutError, ConnectionError, httpx.TimeoutException, httpx.TransportError))
 
 
 class AllProvidersFailed(RuntimeError):
@@ -101,7 +80,7 @@ class StreamResult:
 class FallbackLLM:
     def __init__(self, providers: list[Provider]):
         if not providers:
-            raise AllProvidersFailed("Chưa cấu hình API key nào (DEEPSEEK_API_KEY / GOOGLE_API_KEY).")
+            raise AllProvidersFailed("Chưa cấu hình API key nào (GOOGLE_API_KEY).")
         self.providers = providers
 
     @property
@@ -133,12 +112,8 @@ class FallbackLLM:
 def build_llm(settings: Settings | None = None) -> FallbackLLM:
     s = settings or get_settings()
     providers: list[Provider] = []
-    if s.deepseek_api_key:
-        providers.append(DeepSeekProvider(s.deepseek_api_key, s.deepseek_model,
-                                          s.deepseek_base_url, s.llm_timeout))
-    else:
-        log.info("DEEPSEEK_API_KEY not set; using Gemini only")
     if s.google_api_key:
         # Several Gemini models: one is often overloaded (503) while another still answers.
-        providers += [GeminiProvider(s.google_api_key, m, s.llm_timeout) for m in s.gemini_models]
+        providers += [GeminiProvider(s.google_api_key, m, s.llm_timeout, s.gemini_thinking_budget)
+                      for m in s.gemini_models]
     return FallbackLLM(providers)

@@ -5,8 +5,8 @@ description = "Chatbot RAG và luyện trắc nghiệm môn Pháp luật đại 
 requires-python = ">=3.11"
 dependencies = [
     "google-genai",
+    "nicegui",
     "numpy",
-    "openai",
     "pdfminer.six",
     "pypdfium2",
     "python-dotenv",
@@ -15,6 +15,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+# Local models (bge-m3 embeddings, bge-reranker-v2-m3). On Windows the DirectML build also runs
+# them on the GPU; install only one onnxruntime package, they share the module name.
+local = [
+    "onnxruntime-directml; sys_platform == 'win32'",
+    "onnxruntime; sys_platform != 'win32'",
+    "tokenizers",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -25,5 +32,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["live: calls real LLM/embedding APIs (needs keys in .env)"]
-addopts = "-m 'not live'"
+markers = [
+    "live: calls real LLM/embedding APIs (needs keys in .env)",
+    "slow: loads the local bge-m3 model (~2 GB)",
+]
+addopts = "-m 'not live and not slow'"
